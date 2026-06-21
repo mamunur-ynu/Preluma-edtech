@@ -1,0 +1,63 @@
+==============================================================
+  PRELUMA — Algorithm Proof & Results
+  Course: Python Programming  |  Yunnan University
+  Generated: 2026-06-17 18:50:54
+==============================================================
+
+DATASET
+----------------------------------------
+  Source file : data/students.csv
+  Total rows  : 6
+
+STATISTICS  (manual implementation — no numpy/pandas)
+----------------------------------------
+  Student count       : 6
+  Average readiness   : 79.83
+  Highest readiness   : 92.00
+  Lowest readiness    : 66.00
+  Variance            : 88.81
+  Most common weak    : Overfitting
+
+ALGORITHM 1 — MERGE SORT  O(n log n)
+----------------------------------------
+  Sorted by: readiness (descending)
+
+  Rank  Student      Topic                      Readiness
+  ----- ------------ ------------------------- ----------
+  1     Jia          Neural Network                  92.0
+  2     Omar         Machine Learning                88.0
+  3     Amir         Machine Learning                85.0
+  4     Fahim        Python Programming              78.0
+  5     Nadia        Statistics                      70.0
+  6     Sara         Data Structures                 66.0
+
+  Elapsed : 19,417 ns  (0.019 ms)
+  Complexity: O(n log n)  |  n = 6
+
+ALGORITHM 2 — LINEAR SEARCH  O(n)
+----------------------------------------
+  Target  : 'Jia'
+  Found   : 'Jia' | topic='Neural Network' | readiness=92.0
+  Elapsed : 7,250 ns  (0.007 ms)
+  Complexity: O(n)  |  n = 6
+
+ALGORITHM 3 — BINARY SEARCH  O(log n)
+----------------------------------------
+  Target  : 'Jia'  (requires pre-sorted input)
+  Sort prep: 10,625 ns  (Merge Sort before Binary Search)
+  Found at index: 2  |  matches: 1
+  Elapsed : 3,625 ns  (0.004 ms)
+  Complexity: O(log n)  |  n = 6
+
+TIMING COMPARISON
+----------------------------------------
+  Linear Search  :        7,250 ns
+  Binary Search  :        3,625 ns
+  Merge Sort     :       19,417 ns
+
+  Note: Binary Search is faster per lookup but requires a
+  pre-sorted array. Linear Search works on any order.
+
+==============================================================
+  END OF RESULT FILE
+==============================================================
