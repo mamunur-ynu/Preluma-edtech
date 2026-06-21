@@ -509,3 +509,47 @@ def llm_free_chat(question: str, provider_name: str = "AI") -> str:
     result = _call_llm(system, question)
     return result.strip() if result else ""
 
+
+def llm_hw_tutor_intro(topic: str, weak_concepts: list, score_pct: float) -> str:
+    """Generate an opening study message after a homework attempt."""
+    weak_str = ", ".join(weak_concepts) if weak_concepts else "general understanding"
+    system = (
+        "You are Preluma AI, a warm and encouraging homework tutor for university students. "
+        "Your job is to help the student understand what they got wrong and guide them to improve. "
+        "Be supportive, clear, and specific. Respond in 3-4 sentences of natural prose."
+    )
+    user = (
+        f"The student just completed a homework on '{topic}' and scored {score_pct:.0f}%. "
+        f"Their weak areas are: {weak_str}. "
+        "Write a short, encouraging opening message that acknowledges their score, "
+        "mentions the weak concept(s) they should focus on, and invites them to ask questions."
+    )
+    result = _call_llm(system, user)
+    if result:
+        return result.strip()
+    return (
+        f"Good effort on the {topic} homework! You scored {score_pct:.0f}%. "
+        f"Let's work on strengthening your understanding of {weak_str}. "
+        "Feel free to ask me anything about the topic!"
+    )
+
+
+def llm_hw_tutor_reply(topic: str, weak_concepts: list, history: list, question: str) -> str:
+    """Reply to a student question in the homework AI tutor chat."""
+    weak_str = ", ".join(weak_concepts) if weak_concepts else "the topic"
+    history_text = ""
+    for msg in history[-6:]:
+        role = "Student" if msg.get("role") == "user" else "Tutor"
+        history_text += f"{role}: {msg.get('text', '')}\n"
+    system = (
+        f"You are Preluma AI, a patient and knowledgeable tutor helping a student understand '{topic}'. "
+        f"The student's weak areas are: {weak_str}. "
+        "Give clear, helpful, encouraging answers in 2-4 sentences. "
+        "Focus on building understanding, not just giving answers."
+    )
+    user = f"Conversation so far:\n{history_text}\nStudent: {question}\n\nTutor:"
+    result = _call_llm(system, user)
+    if result:
+        return result.strip()
+    return "That's a great question! Let me help you think through it step by step."
+
