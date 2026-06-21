@@ -6291,22 +6291,27 @@ def admin_panel_page():
     all_users = get_all_users()
 
     # ── Stats ──
-    teachers = [u for u in all_users if u.get("Role") == "teacher"]
+    _admin_set  = {"mim.ynu", "fahim", "jiarul"}
+    admins   = [u for u in all_users if u.get("Username","").lower() in _admin_set]
+    teachers = [u for u in all_users if u.get("Role") == "teacher" and u.get("Username","").lower() not in _admin_set]
     students = [u for u in all_users if u.get("Role") == "student"]
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Users", len(all_users))
-    c2.metric("Teachers", len(teachers))
-    c3.metric("Students", len(students))
+    c2.metric("Admins",    len(admins))
+    c3.metric("Teachers",  len(teachers))
+    c4.metric("Students",  len(students))
 
     st.markdown("<hr style='border-color:rgba(255,255,255,.06);margin:16px 0;'>", unsafe_allow_html=True)
 
     # ── Filter ──
-    filter_role = st.selectbox("Filter by role", ["All", "student", "teacher"], key="admin_filter")
+    filter_role = st.selectbox("Filter by role", ["All", "admin", "student", "teacher"], key="admin_filter")
     search_q    = st.text_input("Search by name or username", key="admin_search", placeholder="Type to filter...")
 
     filtered = all_users
-    if filter_role != "All":
-        filtered = [u for u in filtered if u.get("Role") == filter_role]
+    if filter_role == "admin":
+        filtered = [u for u in filtered if u.get("Username","").lower() in _admin_set]
+    elif filter_role != "All":
+        filtered = [u for u in filtered if u.get("Role") == filter_role and u.get("Username","").lower() not in _admin_set]
     if search_q.strip():
         sq = search_q.strip().lower()
         filtered = [u for u in filtered if sq in u.get("Username","").lower() or sq in u.get("Full Name","").lower()]
@@ -6314,15 +6319,25 @@ def admin_panel_page():
     st.markdown(f"<div style='font-size:12px;color:#64748b;margin-bottom:8px;'>{len(filtered)} users shown</div>", unsafe_allow_html=True)
 
     # Protected accounts — cannot be deleted
-    _PROTECTED = {"mim.ynu", "fahim", "jiarul", "mamun", "teacher",
+    _PROTECTED = {"mim.ynu", "fahim", "jiarul",
                   "zhouyujue", "gaosong", "tangli", "weiping",
-                  "student1", "student2", "class_demo"}
+                  "class_demo"}
+    # Admin accounts get a special badge
+    _ADMIN_BADGE = {"mim.ynu", "fahim", "jiarul", "mamun"}
 
     for u in filtered:
         uname = u.get("Username", "")
         fname = u.get("Full Name", uname)
         role  = u.get("Role", "student")
-        role_color = "#67e8f9" if role == "teacher" else "#86efac"
+        if uname.lower() in _ADMIN_BADGE:
+            badge_label = "ADMIN"
+            role_color  = "#f59e0b"   # amber
+        elif role == "teacher":
+            badge_label = "TEACHER"
+            role_color  = "#67e8f9"
+        else:
+            badge_label = "STUDENT"
+            role_color  = "#86efac"
         col_info, col_del = st.columns([5, 1])
         with col_info:
             st.markdown(
@@ -6331,7 +6346,7 @@ def admin_panel_page():
                 f"<span style='font-size:13px;font-weight:700;color:#e2e8f0;'>{fname}</span>"
                 f"<span style='font-size:11px;color:#64748b;margin-left:8px;'>@{uname}</span>"
                 f"<span style='font-size:10px;font-weight:800;color:{role_color};"
-                f"background:{role_color}18;padding:2px 8px;border-radius:8px;margin-left:8px;'>{role.upper()}</span>"
+                f"background:{role_color}18;padding:2px 8px;border-radius:8px;margin-left:8px;'>{badge_label}</span>"
                 f"</div>", unsafe_allow_html=True)
         with col_del:
             if uname.lower() not in _PROTECTED:
