@@ -196,11 +196,11 @@ def ensure_setup() -> None:
     if _SETUP_DONE:
         return
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    existing = {u["Username"] for u in _read_all()}
-    for username, password, role, full_name in DEMO_USERS:
-        uname = username.strip().lower()
-        if uname not in existing:
-            _write_row({
+    if _supabase_available():
+        # Always upsert DEMO_USERS so roles/names stay in sync with code
+        for username, password, role, full_name in DEMO_USERS:
+            uname = username.strip().lower()
+            _sb_upsert({
                 "User ID":       _new_id(),
                 "Username":      uname,
                 "Password Hash": _hash(password),
@@ -208,7 +208,20 @@ def ensure_setup() -> None:
                 "Full Name":     full_name.strip(),
                 "Created At":    _now(),
             })
-            existing.add(uname)
+    else:
+        existing = {u["Username"] for u in _csv_read_all()}
+        for username, password, role, full_name in DEMO_USERS:
+            uname = username.strip().lower()
+            if uname not in existing:
+                _csv_append({
+                    "User ID":       _new_id(),
+                    "Username":      uname,
+                    "Password Hash": _hash(password),
+                    "Role":          role,
+                    "Full Name":     full_name.strip(),
+                    "Created At":    _now(),
+                })
+                existing.add(uname)
     _SETUP_DONE = True
 
 
