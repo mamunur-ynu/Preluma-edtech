@@ -1083,7 +1083,6 @@ def sidebar():
     st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
     # Hidden Admin Panel — only visible to inventors
-    _ADMIN_USERS = {"mim.ynu", "fahim", "jiarul", "mamun"}
     _cur_username = st.session_state.get("username", "").strip().lower()
     if _cur_username in _ADMIN_USERS:
         st.sidebar.markdown("<div style='margin-top:4px;'>", unsafe_allow_html=True)
