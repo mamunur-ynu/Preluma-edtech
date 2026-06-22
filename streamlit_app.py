@@ -5493,24 +5493,26 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stDecoration"]{{ display:none !important; }}
 [data-testid="stStatusWidget"] {{ display:none !important; }}
 
-/* ── Remove Streamlit top whitespace ── */
-[data-testid="stMain"] {{ padding-top: 0 !important; }}
+/* ── Remove ALL Streamlit internal top whitespace ── */
+[data-testid="stMain"] {{ padding-top: 0 !important; padding-bottom: 0 !important; }}
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
+[data-testid="stMain"] .block-container > div:first-child {{ margin-top: 0 !important; padding-top: 0 !important; }}
+[data-testid="stVerticalBlock"] > div:first-child {{ margin-top: 0 !important; }}
 
 /* ── FIXED position card — always sits in staircase, never covers building ── */
 [data-testid="stMain"] .block-container {{
     position: fixed !important;
-    top: 41vh !important;
+    top: 45vh !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: 78vw !important;
     max-width: 78vw !important;
-    max-height: 57vh !important;
+    max-height: 54vh !important;
     overflow-y: auto !important;
     overflow-x: hidden !important;
     margin: 0 !important;
-    padding: 12px 40px 10px !important;
+    padding: 10px 40px 10px !important;
     background: rgba(4,10,28,0.55) !important;
     backdrop-filter: blur(28px) saturate(1.5) !important;
     -webkit-backdrop-filter: blur(28px) saturate(1.5) !important;
