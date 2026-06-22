@@ -5498,48 +5498,58 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — staircase width, sits below building ── */
+/* ── FIXED position card — always sits in staircase, never covers building ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 78vw !important;
+    position: fixed !important;
+    top: 41vh !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
     width: 78vw !important;
-    margin: 44vh auto 0 auto !important;
-    padding: 14px 44px 10px !important;
-    background: rgba(4,10,28,0.52) !important;
-    backdrop-filter: blur(32px) saturate(1.6) !important;
-    -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
+    max-width: 78vw !important;
+    max-height: 57vh !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    margin: 0 !important;
+    padding: 12px 40px 10px !important;
+    background: rgba(4,10,28,0.55) !important;
+    backdrop-filter: blur(28px) saturate(1.5) !important;
+    -webkit-backdrop-filter: blur(28px) saturate(1.5) !important;
     border: 1px solid rgba(255,255,255,0.13) !important;
     border-top: 1px solid rgba(255,255,255,0.22) !important;
-    border-radius: 22px !important;
-    box-shadow:
-        0 24px 64px rgba(0,0,0,0.45),
-        inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    border-radius: 20px !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.50),
+                inset 0 1px 0 rgba(255,255,255,0.10) !important;
+    z-index: 999 !important;
 }}
 
-/* ── Logo ── */
-.login-logo {{ text-align:center; margin-bottom:8px; }}
+/* ── Logo — compact ── */
+.login-logo {{ text-align:center; margin-bottom:6px; }}
 .login-logo-name {{
-    font-size:32px; font-weight:900; color:#67e8f9;
-    letter-spacing:-1.5px; line-height:1;
-    text-shadow: 0 0 40px rgba(103,232,249,0.6), 0 0 16px rgba(103,232,249,0.3);
+    font-size:26px; font-weight:900; color:#67e8f9;
+    letter-spacing:-1px; line-height:1;
+    text-shadow: 0 0 30px rgba(103,232,249,0.6), 0 0 12px rgba(103,232,249,0.3);
 }}
 .login-logo-tag  {{
-    font-size:10px; color:rgba(255,255,255,0.50); font-weight:600;
-    letter-spacing:.15em; margin-top:4px;
+    font-size:9px; color:rgba(255,255,255,0.50); font-weight:600;
+    letter-spacing:.13em; margin-top:3px;
 }}
 .login-logo-univ {{
-    font-size:9.5px; color:rgba(255,255,255,0.28); letter-spacing:.05em; margin-top:2px;
+    font-size:8.5px; color:rgba(255,255,255,0.28); letter-spacing:.04em; margin-top:1px;
 }}
 
-/* ── Tighten all form spacing aggressively ── */
+/* ── Compact spacing so everything fits in 57vh ── */
 .stTextInput {{ margin-bottom: -10px !important; }}
-.stTextInput label {{ margin-bottom: 2px !important; font-size: 12px !important; }}
-[data-testid="stCheckbox"] {{ margin-top: -6px !important; margin-bottom: -6px !important; }}
-[data-testid="stFormSubmitButton"] {{ margin-top: 2px !important; }}
-[data-testid="stFormSubmitButton"] button {{ padding: 0.35rem 1rem !important; }}
-.stTabs [data-baseweb="tab-list"] {{ margin-bottom: -4px !important; }}
-div[data-testid="stForm"] {{ padding: 12px 14px 10px !important; border-radius: 14px !important; }}
-/* Hide expander below form — use inline forgot link instead */
-[data-testid="stMain"] details {{ display: none !important; }}
+.stTextInput label {{ margin-bottom: 1px !important; font-size: 11px !important; }}
+.stTextInput input {{ font-size: 13px !important; padding: 6px 10px !important; }}
+[data-testid="stCheckbox"] {{ margin-top: -4px !important; margin-bottom: -4px !important; }}
+[data-testid="stCheckbox"] label {{ font-size: 12px !important; }}
+[data-testid="stFormSubmitButton"] {{ margin-top: 4px !important; }}
+[data-testid="stFormSubmitButton"] button {{ padding: 0.3rem 1rem !important; font-size: 13px !important; }}
+.stTabs [data-baseweb="tab-list"] {{ margin-bottom: -6px !important; }}
+.stTabs [data-baseweb="tab"] {{ font-size: 12px !important; padding: 6px 12px !important; }}
+div[data-testid="stForm"] {{ padding: 10px 12px 8px !important; border-radius: 12px !important; }}
+details {{ border-radius: 10px !important; }}
+.streamlit-expanderHeader {{ font-size: 12px !important; padding: 6px 12px !important; }}
 
 /* ── Hide "Press Enter to submit form" tooltip ── */
 [data-testid="InputInstructions"] {{ display: none !important; }}
@@ -5668,17 +5678,17 @@ def login_page():
         "border:2px solid rgba(16,185,129,.32);"
     )
     st.markdown(f"""
-<div style="display:flex;gap:12px;margin-bottom:20px;">
+<div style="display:flex;gap:10px;margin-bottom:10px;">
   <a href="?role=Teacher" target="_self" style="flex:1;text-decoration:none;">
-    <div style="padding:14px 8px;border-radius:12px;
-                font-size:13px;font-weight:800;letter-spacing:.08em;
+    <div style="padding:9px 8px;border-radius:10px;
+                font-size:12px;font-weight:800;letter-spacing:.08em;
                 text-align:center;cursor:pointer;{t_style}">
       TEACHER
     </div>
   </a>
   <a href="?role=Student" target="_self" style="flex:1;text-decoration:none;">
-    <div style="padding:14px 8px;border-radius:12px;
-                font-size:13px;font-weight:800;letter-spacing:.08em;
+    <div style="padding:9px 8px;border-radius:10px;
+                font-size:12px;font-weight:800;letter-spacing:.08em;
                 text-align:center;cursor:pointer;{s_style}">
       STUDENT
     </div>
