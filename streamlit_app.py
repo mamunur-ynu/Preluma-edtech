@@ -5498,11 +5498,12 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — wide as staircases, no scroll needed ── */
+/* ── Frosted glass card — full width, covers staircase area ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 680px !important;
-    margin: 38vh auto 0 auto !important;
-    padding: 16px 44px 14px !important;
+    max-width: 92vw !important;
+    width: 92vw !important;
+    margin: 42vh auto 0 auto !important;
+    padding: 16px 48px 14px !important;
     background: rgba(4,10,28,0.52) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
