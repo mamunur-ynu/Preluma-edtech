@@ -5316,7 +5316,7 @@ def project_team():
     members = [
         (m1, "#0ea5e9", "MAMUNUR RASHID",
          "Lead Developer · Architecture · Deployment",
-         "Built the complete Preluma architecture -- streamlit_app.py (5 100+ lines), engine.py, llm.py, project_core.py, homework_core.py, auth.py. Designed every page, built the login system, 3-Mood AI, student/teacher project system, and deployed to Streamlit Cloud.",
+         "Built the complete Preluma architecture -- streamlit_app.py, engine.py, llm.py, project_core.py, homework_core.py, auth.py. Designed every page, built the login system, 3-Mood AI, student/teacher project system, and deployed to Streamlit Cloud.",
          "streamlit_app.py · engine.py · llm.py · project_core.py · auth.py"),
         (m2, "#10b981", "MD FAHIM",
          "Quiz Logic · Algorithm Validation · Python Testing",
