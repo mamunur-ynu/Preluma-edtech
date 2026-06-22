@@ -5477,14 +5477,15 @@ def _login_bg_css(role: str = "Student") -> str:
 <style>
 /* ── Background — full viewport, image visible ── */
 [data-testid="stAppViewContainer"] {{
-    background: {bg_val} center 20%/cover no-repeat fixed !important;
+    background: {bg_val} center 20% / cover no-repeat !important;
+    min-height: 100vh !important;
 }}
 [data-testid="stAppViewContainer"]::before {{
     content:""; position:fixed; inset:0;
     background: linear-gradient(to bottom,
-        rgba(0,5,18,0.28) 0%,
-        rgba(0,5,18,0.38) 50%,
-        rgba(0,5,18,0.55) 100%);
+        rgba(0,5,18,0.22) 0%,
+        rgba(0,5,18,0.30) 50%,
+        rgba(0,5,18,0.48) 100%);
     z-index:0;
 }}
 [data-testid="stHeader"]    {{ background:transparent !important; box-shadow:none !important; }}
@@ -5497,12 +5498,12 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — sits between the staircases, gate-to-school feel ── */
+/* ── Frosted glass card — wider, compact height, lower on screen ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 360px !important;
-    margin: 30vh auto 0 auto !important;
-    padding: 24px 32px 22px !important;
-    background: rgba(4,10,28,0.48) !important;
+    max-width: 520px !important;
+    margin: 32vh auto 0 auto !important;
+    padding: 20px 36px 18px !important;
+    background: rgba(4,10,28,0.52) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
     border: 1px solid rgba(255,255,255,0.13) !important;
