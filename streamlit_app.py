@@ -5477,7 +5477,7 @@ def _login_bg_css(role: str = "Student") -> str:
 <style>
 /* ── Background — full viewport, image visible ── */
 [data-testid="stAppViewContainer"] {{
-    background: {bg_val} center 20% / cover no-repeat !important;
+    background: {bg_val} center top / cover no-repeat !important;
     min-height: 100vh !important;
 }}
 [data-testid="stAppViewContainer"]::before {{
@@ -5498,11 +5498,11 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — wider, compact height, lower on screen ── */
+/* ── Frosted glass card — in staircase area, building fully visible above ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 520px !important;
-    margin: 32vh auto 0 auto !important;
-    padding: 20px 36px 18px !important;
+    max-width: 540px !important;
+    margin: 48vh auto 0 auto !important;
+    padding: 18px 36px 16px !important;
     background: rgba(4,10,28,0.52) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
@@ -5515,19 +5515,24 @@ section.main .block-container {{ padding-top: 0 !important; }}
 }}
 
 /* ── Logo ── */
-.login-logo {{ text-align:center; margin-bottom:12px; }}
+.login-logo {{ text-align:center; margin-bottom:8px; }}
 .login-logo-name {{
-    font-size:38px; font-weight:900; color:#67e8f9;
-    letter-spacing:-2px; line-height:1;
+    font-size:32px; font-weight:900; color:#67e8f9;
+    letter-spacing:-1.5px; line-height:1;
     text-shadow: 0 0 40px rgba(103,232,249,0.6), 0 0 16px rgba(103,232,249,0.3);
 }}
 .login-logo-tag  {{
-    font-size:11.5px; color:rgba(255,255,255,0.50); font-weight:600;
-    letter-spacing:.15em; margin-top:8px;
+    font-size:10px; color:rgba(255,255,255,0.50); font-weight:600;
+    letter-spacing:.15em; margin-top:4px;
 }}
 .login-logo-univ {{
-    font-size:10.5px; color:rgba(255,255,255,0.28); letter-spacing:.05em; margin-top:3px;
+    font-size:9.5px; color:rgba(255,255,255,0.28); letter-spacing:.05em; margin-top:2px;
 }}
+
+/* ── Tighten form spacing ── */
+.stTextInput {{ margin-bottom: -8px !important; }}
+[data-testid="stCheckbox"] {{ margin-top: -4px !important; margin-bottom: -4px !important; }}
+[data-testid="stFormSubmitButton"] {{ margin-top: 4px !important; }}
 
 /* ── Hide "Press Enter to submit form" tooltip ── */
 [data-testid="InputInstructions"] {{ display: none !important; }}
