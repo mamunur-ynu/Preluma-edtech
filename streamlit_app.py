@@ -5497,28 +5497,28 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — narrow so building shows on both sides ── */
+/* ── Frosted glass card — centered on building entrance, between staircases ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 400px !important;
-    margin: 12px auto 0 auto !important;
-    padding: 32px 38px 28px !important;
+    max-width: 360px !important;
+    margin: 10vh auto 0 auto !important;
+    padding: 24px 32px 22px !important;
     background: rgba(4,10,28,0.48) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
     border: 1px solid rgba(255,255,255,0.13) !important;
     border-top: 1px solid rgba(255,255,255,0.22) !important;
-    border-radius: 26px !important;
+    border-radius: 22px !important;
     box-shadow:
         0 24px 64px rgba(0,0,0,0.45),
         inset 0 1px 0 rgba(255,255,255,0.10) !important;
 }}
 
 /* ── Logo ── */
-.login-logo {{ text-align:center; margin-bottom:16px; }}
+.login-logo {{ text-align:center; margin-bottom:12px; }}
 .login-logo-name {{
-    font-size:44px; font-weight:900; color:#67e8f9;
+    font-size:38px; font-weight:900; color:#67e8f9;
     letter-spacing:-2px; line-height:1;
-    text-shadow: 0 0 50px rgba(103,232,249,0.6), 0 0 20px rgba(103,232,249,0.3);
+    text-shadow: 0 0 40px rgba(103,232,249,0.6), 0 0 16px rgba(103,232,249,0.3);
 }}
 .login-logo-tag  {{
     font-size:11.5px; color:rgba(255,255,255,0.50); font-weight:600;
