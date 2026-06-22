@@ -5498,12 +5498,12 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — full width, covers staircase area ── */
+/* ── Frosted glass card — staircase width, sits below building ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 92vw !important;
-    width: 92vw !important;
-    margin: 42vh auto 0 auto !important;
-    padding: 16px 48px 14px !important;
+    max-width: 78vw !important;
+    width: 78vw !important;
+    margin: 44vh auto 0 auto !important;
+    padding: 14px 44px 10px !important;
     background: rgba(4,10,28,0.52) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
@@ -5530,10 +5530,16 @@ section.main .block-container {{ padding-top: 0 !important; }}
     font-size:9.5px; color:rgba(255,255,255,0.28); letter-spacing:.05em; margin-top:2px;
 }}
 
-/* ── Tighten form spacing ── */
-.stTextInput {{ margin-bottom: -8px !important; }}
-[data-testid="stCheckbox"] {{ margin-top: -4px !important; margin-bottom: -4px !important; }}
-[data-testid="stFormSubmitButton"] {{ margin-top: 4px !important; }}
+/* ── Tighten all form spacing aggressively ── */
+.stTextInput {{ margin-bottom: -10px !important; }}
+.stTextInput label {{ margin-bottom: 2px !important; font-size: 12px !important; }}
+[data-testid="stCheckbox"] {{ margin-top: -6px !important; margin-bottom: -6px !important; }}
+[data-testid="stFormSubmitButton"] {{ margin-top: 2px !important; }}
+[data-testid="stFormSubmitButton"] button {{ padding: 0.35rem 1rem !important; }}
+.stTabs [data-baseweb="tab-list"] {{ margin-bottom: -4px !important; }}
+div[data-testid="stForm"] {{ padding: 12px 14px 10px !important; border-radius: 14px !important; }}
+/* Hide expander below form — use inline forgot link instead */
+[data-testid="stMain"] details {{ display: none !important; }}
 
 /* ── Hide "Press Enter to submit form" tooltip ── */
 [data-testid="InputInstructions"] {{ display: none !important; }}
@@ -5779,7 +5785,8 @@ def login_page():
                 _sc1, _sc2 = st.columns(2)
                 username   = _sc1.text_input("Username", placeholder="Enter your username")
                 password   = _sc2.text_input("Password", type="password", placeholder="Enter your password")
-                s_remember = st.checkbox("Keep me logged in", value=True)
+                _cr1, _cr2 = st.columns([3,1])
+                s_remember = _cr1.checkbox("Keep me logged in", value=True)
                 submitted  = st.form_submit_button("Log In", use_container_width=True, type="primary")
 
             if submitted:
