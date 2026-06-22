@@ -5492,11 +5492,16 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stDecoration"]{{ display:none !important; }}
 [data-testid="stStatusWidget"] {{ display:none !important; }}
 
-/* ── Frosted glass card ── */
+/* ── Remove Streamlit top whitespace ── */
+[data-testid="stMain"] {{ padding-top: 0 !important; }}
+[data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
+section.main .block-container {{ padding-top: 0 !important; }}
+
+/* ── Frosted glass card — narrow so building shows on both sides ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 460px !important;
-    margin: 24px auto !important;
-    padding: 40px 44px 36px !important;
+    max-width: 400px !important;
+    margin: 12px auto 0 auto !important;
+    padding: 32px 38px 28px !important;
     background: rgba(4,10,28,0.48) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
@@ -5509,9 +5514,9 @@ def _login_bg_css(role: str = "Student") -> str:
 }}
 
 /* ── Logo ── */
-.login-logo {{ text-align:center; margin-bottom:24px; }}
+.login-logo {{ text-align:center; margin-bottom:16px; }}
 .login-logo-name {{
-    font-size:50px; font-weight:900; color:#67e8f9;
+    font-size:44px; font-weight:900; color:#67e8f9;
     letter-spacing:-2px; line-height:1;
     text-shadow: 0 0 50px rgba(103,232,249,0.6), 0 0 20px rgba(103,232,249,0.3);
 }}
