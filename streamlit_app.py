@@ -5498,11 +5498,11 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — in staircase area, building fully visible above ── */
+/* ── Frosted glass card — wide as staircases, no scroll needed ── */
 [data-testid="stMain"] .block-container {{
-    max-width: 540px !important;
-    margin: 48vh auto 0 auto !important;
-    padding: 18px 36px 16px !important;
+    max-width: 680px !important;
+    margin: 38vh auto 0 auto !important;
+    padding: 16px 44px 14px !important;
     background: rgba(4,10,28,0.52) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
     -webkit-backdrop-filter: blur(32px) saturate(1.6) !important;
@@ -5694,8 +5694,9 @@ def login_page():
 
         with tab_tlogin:
             with st.form("teacher_login_form"):
-                t_user     = st.text_input("Username", placeholder="Teacher username")
-                t_pass     = st.text_input("Password", type="password", placeholder="Password")
+                _tc1, _tc2 = st.columns(2)
+                t_user     = _tc1.text_input("Username", placeholder="Teacher username")
+                t_pass     = _tc2.text_input("Password", type="password", placeholder="Password")
                 t_remember = st.checkbox("Keep me logged in", value=True)
                 t_sub      = st.form_submit_button("Log In as Teacher", use_container_width=True, type="primary")
 
@@ -5774,8 +5775,9 @@ def login_page():
 
         with tab_login:
             with st.form("student_login_form"):
-                username   = st.text_input("Username", placeholder="Enter your username")
-                password   = st.text_input("Password", type="password", placeholder="Enter your password")
+                _sc1, _sc2 = st.columns(2)
+                username   = _sc1.text_input("Username", placeholder="Enter your username")
+                password   = _sc2.text_input("Password", type="password", placeholder="Enter your password")
                 s_remember = st.checkbox("Keep me logged in", value=True)
                 submitted  = st.form_submit_button("Log In", use_container_width=True, type="primary")
 
