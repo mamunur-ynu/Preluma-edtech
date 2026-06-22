@@ -5477,7 +5477,7 @@ def _login_bg_css(role: str = "Student") -> str:
 <style>
 /* ── Background — full viewport, image visible ── */
 [data-testid="stAppViewContainer"] {{
-    background: {bg_val} center 30%/cover no-repeat fixed !important;
+    background: {bg_val} center 20%/cover no-repeat fixed !important;
 }}
 [data-testid="stAppViewContainer"]::before {{
     content:""; position:fixed; inset:0;
@@ -5497,10 +5497,10 @@ def _login_bg_css(role: str = "Student") -> str:
 [data-testid="stAppViewBlockContainer"] {{ padding-top: 0 !important; }}
 section.main .block-container {{ padding-top: 0 !important; }}
 
-/* ── Frosted glass card — centered on building entrance, between staircases ── */
+/* ── Frosted glass card — sits between the staircases, gate-to-school feel ── */
 [data-testid="stMain"] .block-container {{
     max-width: 360px !important;
-    margin: 10vh auto 0 auto !important;
+    margin: 30vh auto 0 auto !important;
     padding: 24px 32px 22px !important;
     background: rgba(4,10,28,0.48) !important;
     backdrop-filter: blur(32px) saturate(1.6) !important;
