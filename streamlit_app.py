@@ -1,3 +1,44 @@
+"""
+streamlit_app.py
+----------------
+Main application entry point for the Preluma pre-class preparation system.
+
+Preluma is a web-based learning assistant built with Streamlit. It helps
+university students prepare for lectures through AI-guided topic missions,
+randomised multiple-choice quizzes, and a homework management system.
+
+Key user roles:
+  Student  — completes topic missions, takes mock tests, submits homework,
+             and chats with the AI tutor.
+  Teacher  — creates and grades homework, sends announcements, monitors class
+             progress through the dashboard, and manages the topic library.
+  Admin    — has full teacher access plus system health and audit tools.
+
+Page routing is managed through st.session_state["active_page"]. Every page
+is a standalone function called from main(). Session persistence uses a
+two-layer approach: a Supabase session ID for cross-restart reliability, and
+a signed HMAC token stored in browser localStorage for instant recovery on
+tab open without a network call.
+
+Module layout
+  Lines   1-928  : imports, session token helpers, Supabase photo storage
+  Lines 929-995  : session initialisation and reset utilities
+  Lines 996-1135 : sidebar with navigation, notifications, and user profile
+  Lines 1136-1444: home page with announcements and feature overview
+  Lines 1445-2719: student mission flow (5-step: brief → example → practice
+                   → mock test → results overview)
+  Lines 2720-3342: project workspace (student and teacher views)
+  Lines 3343-3884: student mission page shell and topic selector
+  Lines 3885-4232: student and teacher profile pages
+  Lines 4232-4607: teacher studio (AI topic builder and tutor sandbox)
+  Lines 4608-4977: student homework page (attempt, submit, view results)
+  Lines 4978-5215: homework question generator and homework creation panel
+  Lines 5215-5485: evidence board, professor defence, and project team pages
+  Lines 5486-5921: login page with CSS theming
+  Lines 5922-6439: class dashboard and admin panel
+  Lines 6440-end : main() entry point
+"""
+
 from pathlib import Path
 import base64
 import json
@@ -43,6 +84,12 @@ import json as _json_mod, time as _time_mod, hmac as _hmac_mod, base64 as _b64_m
 _HMAC_KEY = b"preluma-ynu-2024-session-key!!!!"  # exactly 32 bytes
 
 def _make_session_token(username: str, role: str, full_name: str) -> str:
+    """
+    Create a signed session token that encodes the user's identity and an
+    expiry timestamp. The token is valid for 30 days and is verified by
+    _verify_session_token() using a constant HMAC key so no database lookup
+    is required on every page load.
+    """
     payload = _json_mod.dumps({
         "u": username, "r": role, "n": full_name,
         "exp": int(_time_mod.time()) + 30 * 24 * 3600,
@@ -52,6 +99,11 @@ def _make_session_token(username: str, role: str, full_name: str) -> str:
     return f"{b64}.{sig}"
 
 def _verify_session_token(token: str) -> dict | None:
+    """
+    Verify a session token and return the decoded payload if it is valid and
+    not expired. Returns None for any token that fails signature checking,
+    cannot be decoded, or has passed its expiry timestamp.
+    """
     try:
         b64, sig = token.rsplit(".", 1)
         expected = _hmac_mod.new(_HMAC_KEY, b64.encode(), "sha256").hexdigest()[:24]
@@ -97,7 +149,14 @@ try {
 </script>""", height=1)
 
 def _save_session_cookie(username: str, role: str, full_name: str) -> None:
-    """Save session: Supabase (permanent) + URL token + localStorage (cross-tab)."""
+    """
+    Persist a login session using three complementary mechanisms:
+      1. Supabase session ID — survives server restarts and new browser tabs.
+      2. HMAC URL token in query params — provides instant recovery without
+         a network call when Supabase is slow to respond.
+      3. Browser localStorage — allows session restoration after the tab is
+         closed and reopened, even if the URL has changed.
+    """
     # 1. Supabase persistent session -- survives refresh, new tab, server restart
     sid = create_persistent_session(username)
     if sid:
@@ -927,6 +986,15 @@ st.markdown(CSS, unsafe_allow_html=True)
 # Session state helpers and shared utilities used across all pages
 
 def init_state():
+    """
+    Initialise all Streamlit session state keys with safe default values.
+
+    This function is called at the top of main() on every script re-run.
+    setdefault() is used throughout so that existing values are never
+    overwritten on subsequent calls — only missing keys are populated.
+    Auth setup (ensure_setup) is also triggered here, but only once per
+    session to avoid redundant Supabase calls on every page interaction.
+    """
     # ensure_setup only runs once per session to avoid repeated Supabase calls
     if not st.session_state.get("_setup_done", False):
         from auth import ensure_setup as _auth_setup; _auth_setup()
@@ -955,6 +1023,14 @@ def init_state():
 
 
 def reset_session():
+    """
+    Clear all mission and homework state keys from the session.
+
+    Called when a student starts a new topic mission so that data from a
+    previous session (pack, questions, quiz results, chat history) does not
+    carry over. Authentication state is intentionally not cleared here —
+    use logout() to end the user's session completely.
+    """
     keys = [
         "student", "topic", "persona", "use_wiki", "pack", "brief",
         "questions", "quiz_result", "latest_session", "tutor_history",
@@ -968,7 +1044,11 @@ def reset_session():
 
 
 def logout():
-    """Clear session state and remember-me cookie."""
+    """
+    Log the current user out by clearing all authentication state, removing
+    the persistent session from Supabase, and erasing the browser localStorage
+    token so that a page refresh does not automatically restore the session.
+    """
     _clear_session_cookie()
     for key in list(st.session_state.keys()):
         del st.session_state[key]
@@ -994,6 +1074,17 @@ def _nav_button(label: str, page_name: str, badge: str = "",
 
 
 def sidebar():
+    """
+    Render the persistent left navigation panel.
+
+    The sidebar contains: the school logo and background image, the user's
+    profile picture and name, role-specific navigation buttons, an unread
+    notification badge for students, and the logout control.
+
+    Navigation state is stored in st.session_state["active_page"] so that
+    the correct page renders on the next Streamlit re-run without any URL
+    routing logic.
+    """
     st.session_state.setdefault("active_page", "Home")
 
     # Tower photo -- more visible gradient so photo shows through
@@ -1134,7 +1225,18 @@ def sidebar():
 # Home page shown to all users on first load
 
 def home_page():
-    """Gorgeous Home page -- the first thing teacher and students see."""
+    """
+    Render the home page — the first screen a user sees after logging in.
+
+    For students the page shows:
+      - An orange announcement banner for any unread Announcement-type
+        notifications, so important messages are visible immediately.
+      - A full-width hero section with a campus background image.
+      - Quick-access cards for the topic mission, homework, and AI tutor.
+
+    For teachers the page shows the same hero plus a direct link to the
+    class dashboard and homework creation panel.
+    """
     provider = _provider()
     ai_label = provider.upper() if provider and provider != "none" else "AI"
     student  = st.session_state.get("student", "") or "Guest"
@@ -2458,6 +2560,18 @@ def _save_mission_quiz_result(result: dict) -> None:
 
 
 def mission_mock_test_screen() -> None:
+    """
+    Render the Step 4 mock test screen with four multiple-choice questions.
+
+    Questions are drawn from the randomised pool built by engine.make_questions()
+    so each attempt produces a different set. The student selects one answer per
+    question using radio buttons, then submits the full test at once. Results
+    are graded immediately by engine.grade() and stored in session state so
+    the results overview screen can display them without re-grading.
+
+    A 'Try Again (New Questions)' button on the results screen calls this
+    function again with a freshly randomised question set.
+    """
     st.markdown("""
     <style>
     @keyframes slide-in {
@@ -3341,6 +3455,20 @@ def teacher_project_page():
 
 
 def student_mission(presentation):
+    """
+    Render the student topic mission shell and topic selection form.
+
+    A mission is a five-step guided learning sequence:
+      Step 1 — Brain Brief: key definitions and facts from the content pack.
+      Step 2 — Example Screen: a worked example connecting theory to practice.
+      Step 3 — Practice Screen: an open reflection prompt with AI feedback.
+      Step 4 — Mock Test: four randomised multiple-choice questions.
+      Step 5 — Results Overview: score, weak skill, and next steps.
+
+    This function handles the pre-mission topic selection screen. Once the
+    student submits a topic, the content pack is built and the five-step
+    mission screens are rendered by the dedicated mission_*_screen() functions.
+    """
     if not st.session_state.get("mission_started") or "pack" not in st.session_state:
         page_intro(
             "ai",
@@ -4606,6 +4734,18 @@ def ask_preluma_ai_page():
 
 
 def my_homework_page():
+    """
+    Render the student homework page.
+
+    Shows all homework assignments that have been assigned to the student or
+    to 'All Students'. The student can:
+      - View the question set and attempt an assignment.
+      - Review their previous submissions with per-question feedback.
+      - Access the AI homework tutor for help with any concept.
+
+    Correct answers are shown only after the student submits, and mistakes
+    are logged to the mistakes file for the teacher's analytics panel.
+    """
     student = st.session_state.get("student", "Student")
 
     page_intro(
@@ -5074,6 +5214,18 @@ def _default_homework_questions(topic: str) -> list[dict]:
 
 
 def homework_center_page():
+    """
+    Render the teacher Homework Center page.
+
+    Provides two tabs:
+      Create Homework — a form for writing a title, topic, instructions,
+        due date, and difficulty level. Questions are generated automatically
+        by engine or entered manually. The form also accepts an optional file
+        attachment and a target student selection.
+      Class Overview — a summary of all submissions grouped by assignment,
+        showing average scores, weakest concepts, and individual student
+        results so the teacher can identify which topics need review.
+    """
     _TEACHER_OPTIONS = [
         "Zhou Yujue (周玉珏) · AI Dept",
         "Gao Song (高嵩) · Software Engineering",
@@ -5921,11 +6073,17 @@ def login_page():
 
 def class_dashboard_page():
     """
-    4-tab teacher dashboard:
-      1. Send Announcement
-      2. Student Progress
-      3. Edit Homework
-      4. Student Lookup
+    Render the four-tab teacher class dashboard.
+
+    Tab 1 — Send Announcement: compose and broadcast a message to all
+      students or a specific group. Announcements appear as an orange
+      banner on the student home page immediately after the next login.
+    Tab 2 — Student Progress: charts and tables showing readiness scores,
+      weak skill distribution, and topic coverage across the whole class.
+    Tab 3 — Edit Homework: modify due dates, instructions, or difficulty
+      on existing assignments, or remove outdated ones.
+    Tab 4 — Student Lookup: search by name to view an individual student's
+      mission history, homework scores, and identified weak concepts.
     """
     page_intro(
         "teacher",
@@ -6334,7 +6492,14 @@ def class_dashboard_page():
 
 
 def admin_panel_page():
-    """Hidden admin panel — only accessible to inventors."""
+    """
+    Render the hidden system administration panel.
+
+    Access is restricted to accounts listed in _ADMIN_USERS. Any other user
+    who navigates to this page receives an access denied message. The panel
+    exposes system health indicators, recent audit log entries, the full
+    registered user list, and manual data management tools for maintenance.
+    """
     _cur = st.session_state.get("username", "").strip().lower()
     if _cur not in _ADMIN_USERS:
         st.error("Access denied.")
@@ -6438,6 +6603,18 @@ def admin_panel_page():
 
 
 def main():
+    """
+    Application entry point — called by Streamlit on every script re-run.
+
+    Execution order:
+      1. Initialise session state defaults via init_state().
+      2. Attempt silent session restoration: first from browser localStorage
+         (via a JS snippet), then from Supabase session ID or HMAC token in
+         the URL query parameters.
+      3. If the user is not logged in, render login_page() and exit.
+      4. If logged in, render the sidebar and then route to the correct page
+         based on st.session_state["active_page"].
+    """
     init_state()
 
     # Restore session from localStorage on fresh tab open
