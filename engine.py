@@ -147,14 +147,127 @@ def build_brain_brief(pack: Dict) -> Dict:
     }
 
 def make_questions(pack: Dict) -> List[Dict]:
-    concept_name, _ = _first_concept(pack)
-    app_name = next(iter(pack["applications"])) if pack["applications"] else "real life"
-    misconception = pack["misconceptions"][0]
+    """Generate 4 topic-specific MCQ questions from the pack data."""
+    title = pack["title"]
+    all_concepts = list(pack["concepts"].items())
+    concept_name, concept_data = _first_concept(pack)
+
+    apps          = list(pack["applications"].keys()) if pack["applications"] else []
+    app_name      = apps[0] if apps else "real-world problem solving"
+    misconceptions = pack["misconceptions"] if pack["misconceptions"] else [f"{title} is only for experts"]
+    misconception  = misconceptions[0]
+    facts          = pack["facts"] if pack["facts"] else [pack["definition"]]
+
+    def _dedupe(opts: list) -> list:
+        """Remove duplicates and ensure exactly 4 options."""
+        seen, out = set(), []
+        for o in opts:
+            k = str(o).strip().lower()[:100]
+            if k and k not in seen:
+                seen.add(k)
+                out.append(o)
+        idx = 0
+        pads = [
+            f"An approach unrelated to {title}",
+            f"A method that does not apply to {title}",
+            f"A concept from a completely different field",
+        ]
+        while len(out) < 4:
+            out.append(pads[idx % len(pads)])
+            idx += 1
+        return out[:4]
+
+    # ── Q1 · Definition ──────────────────────────────────────────────────────
+    # Wrong options: definitions of OTHER concepts in this topic (topic-specific!)
+    def_correct = pack["definition"]
+    def_wrongs = [
+        cd.get("definition", "")
+        for _, cd in all_concepts[1:4]
+        if cd.get("definition", "").strip().lower() != def_correct.strip().lower()
+    ]
+    # Fill with topic-relevant fallbacks if not enough concepts
+    def_fallbacks = [
+        f"{title} is purely a theoretical concept with no practical application.",
+        f"{title} refers to memorising facts without understanding their meaning.",
+        f"{title} is an advanced process only experts can use — beginners cannot learn it.",
+    ]
+    for fb in def_fallbacks:
+        if len(def_wrongs) < 3:
+            def_wrongs.append(fb)
+
+    # ── Q2 · Core Concept ────────────────────────────────────────────────────
+    # Correct: first concept name. Wrong: other real concept names from this topic.
+    core_correct = concept_name.title()
+    core_wrongs  = [
+        n.title() for n, _ in all_concepts[1:4]
+        if n.title().lower() != core_correct.lower()
+    ]
+    core_fallbacks = ["Arbitrary Sampling", "Passive Recall", "Unstructured Repetition"]
+    for fb in core_fallbacks:
+        if len(core_wrongs) < 3:
+            core_wrongs.append(fb)
+
+    # ── Q3 · Application ─────────────────────────────────────────────────────
+    # Correct: first application. Wrong: other real applications from this topic.
+    app_correct = app_name.title()
+    app_wrongs  = [
+        a.title() for a in apps[1:4]
+        if a.title().lower() != app_correct.lower()
+    ]
+    app_fallbacks = [
+        f"Replacing all understanding of {title} with memorisation only",
+        f"Avoiding {title} in practical or real-world settings entirely",
+        f"Using {title} only as an entertainment tool with no learning outcome",
+    ]
+    for fb in app_fallbacks:
+        if len(app_wrongs) < 3:
+            app_wrongs.append(fb)
+
+    # ── Q4 · Misconception ───────────────────────────────────────────────────
+    # Correct: first misconception. Wrong: REAL FACTS from the pack (true statements),
+    # so the student must identify the false one among truths.
+    fact_wrongs = [
+        f for f in facts[:4]
+        if f.strip().lower() != misconception.strip().lower()
+    ]
+    fact_fallbacks = [
+        f"{title} can be understood through clear definitions and examples.",
+        f"Learning {title} involves both theory and real-world practice.",
+        f"Students improve at {title} by asking questions and studying examples.",
+    ]
+    for fb in fact_fallbacks:
+        if len(fact_wrongs) < 3:
+            fact_wrongs.append(fb)
+
     return [
-        {"skill": SKILL_DEFINITION, "q": f"What is the best simple definition of {pack['title']}?", "options": [pack["definition"], "A random activity with no rules", "Only memorizing a word", "A topic that cannot be explained"], "answer": pack["definition"], "why": "The definition explains the main meaning clearly."},
-        {"skill": SKILL_CORE, "q": f"Which concept is important in {pack['title']}?", "options": [concept_name.title(), "A method that relies on random selection rather than structured reasoning", "An unrelated process that ignores the topic entirely", "Random Guess"], "answer": concept_name.title(), "why": f"{concept_name.title()} is a core concept."},
-        {"skill": SKILL_APPLICATION, "q": f"Where can {pack['title']} be applied?", "options": [app_name.title(), "Only in dreams", "Nowhere useful", "Only for decoration"], "answer": app_name.title(), "why": f"{app_name.title()} is connected to the topic."},
-        {"skill": SKILL_MISCONCEPTION, "q": "Which statement is a common misunderstanding?", "options": [misconception, "Examples help learning", "Class questions are useful", "Definitions are important"], "answer": misconception, "why": "This option describes a misconception students should avoid."},
+        {
+            "skill": SKILL_DEFINITION,
+            "q": f"Which of the following best describes {title}?",
+            "options": _dedupe([def_correct] + def_wrongs),
+            "answer": def_correct,
+            "why": f"This is the accurate definition of {title}.",
+        },
+        {
+            "skill": SKILL_CORE,
+            "q": f"Which of the following is a key concept in {title}?",
+            "options": _dedupe([core_correct] + core_wrongs),
+            "answer": core_correct,
+            "why": f"{core_correct} is a central concept in {title}.",
+        },
+        {
+            "skill": SKILL_APPLICATION,
+            "q": f"Which of the following is a real-world application of {title}?",
+            "options": _dedupe([app_correct] + app_wrongs),
+            "answer": app_correct,
+            "why": f"{app_correct} is a genuine application of {title}.",
+        },
+        {
+            "skill": SKILL_MISCONCEPTION,
+            "q": f"Which of the following statements about {title} is a common misconception?",
+            "options": _dedupe([misconception] + fact_wrongs),
+            "answer": misconception,
+            "why": f"This is a misconception about {title} — the other options are all correct statements.",
+        },
     ]
 
 def grade(questions: List[Dict], answers: Dict[int, str]) -> Dict:
