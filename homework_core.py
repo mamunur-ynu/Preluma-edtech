@@ -151,7 +151,7 @@ def create_homework(
             message=f"{topic} homework is due on {due_date}.",
             reference_id=homework_id,
         )
-    return homework_id
+    return homework_id, homework_id
 
 
 def create_notification(
@@ -264,9 +264,9 @@ def submit_homework(
         question_id = int(question.get("Question ID", 0))
         marks = int(float(question.get("Marks", 1) or 1))
         total += marks
-        chosen = answers.get(question_id, "")
-        correct_answer = question.get("Correct Answer", "")
-        correct = chosen == correct_answer
+        chosen = answers.get(question_id, "") or ""
+        correct_answer = question.get("Correct Answer", "") or ""
+        correct = chosen.strip() == correct_answer.strip()
         if correct:
             score += marks
         else:

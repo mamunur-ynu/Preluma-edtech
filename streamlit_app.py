@@ -2621,11 +2621,6 @@ def mission_overview_screen() -> None:
     </div>
     """, unsafe_allow_html=True)
 
-    if class_questions:
-        st.markdown("#### Questions you are ready to ask in class")
-        for number, question in enumerate(class_questions[:5], 1):
-            st.write(f"{number}. {question}")
-
     class_questions = st.session_state.get("class_questions", [])
     if class_questions:
         st.markdown(
@@ -3705,8 +3700,10 @@ unsafe_allow_html=True)
             unsafe_allow_html=True,
         )
         photo_up = st.file_uploader(
-            "Choose photo", type=["jpg", "jpeg", "png"],
+            "Choose photo — max 5 MB (JPG or PNG only)",
+            type=["jpg", "jpeg", "png"],
             key="profile_photo_up",
+            help="Profile photos must be under 5 MB. Larger files will be rejected.",
         )
         c1, c2 = st.columns(2)
         if photo_up is not None:
@@ -3877,7 +3874,7 @@ def teacher_profile_page():
     cols = [col1, col2, col1, col2]
     for idx, t in enumerate(TEACHERS):
         photo_src = _get_photo_src(t["photo_key"])
-        av = f'<img src="{photo_src}" class="tpg-av">' if photo_src else f'<div class="tpg-av">{t["initials"]}</div>'
+        av = f'<img src="{photo_src}" class="tpg-av" width="60" height="60" style="width:60px;height:60px;object-fit:cover;border-radius:50%;flex-shrink:0;">' if photo_src else f'<div class="tpg-av">{t["initials"]}</div>'
         with cols[idx]:
             st.markdown(f"""
             <div class="tpg-card">
@@ -4056,7 +4053,7 @@ def teacher_detail_page():
     """, unsafe_allow_html=True)
 
     # ── Hero card ──
-    ph_html = f'<img src="{photo_src}" class="td-photo">' if photo_src else f'<div class="td-photo-ph">{t["initials"]}</div>'
+    ph_html = f'<img src="{photo_src}" class="td-photo" width="160" height="160" style="width:160px;height:160px;object-fit:cover;border-radius:20px;flex-shrink:0;">' if photo_src else f'<div class="td-photo-ph">{t["initials"]}</div>'
     st.markdown(f"""
     <div class="td-hero">
         <div class="td-photo-wrap">
