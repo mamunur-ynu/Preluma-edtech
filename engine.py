@@ -191,12 +191,18 @@ def make_questions(pack: Dict) -> List[Dict]:
         return opts
 
     # ── Q1 · Definition ──────────────────────────────────────────────────────
-    def_correct = pack["definition"]
-    def_wrongs = [
-        cd.get("definition", "")
-        for _, cd in all_concepts[1:]
-        if cd.get("definition", "").strip().lower() != def_correct.strip().lower()
-    ]
+    # Randomly ask about the topic-level definition OR a specific concept's definition
+    _def_candidates = [(title, pack["definition"], f"Which of the following best describes {title}?")]
+    for _cn, _cd in all_concepts:
+        _cdef = _cd.get("definition", "").strip()
+        if _cdef and _cdef.lower() != pack["definition"].strip().lower():
+            _def_candidates.append((_cn.title(), _cdef, f"Which of the following best describes {_cn.title()} in {title}?"))
+    _def_choice = random.choice(_def_candidates)
+    def_subject, def_correct, def_question = _def_choice
+
+    # Wrong options: all other definitions (topic + concept) except the chosen one
+    _all_defs = [pack["definition"]] + [cd.get("definition","") for _, cd in all_concepts]
+    def_wrongs = [d for d in _all_defs if d.strip() and d.strip().lower() != def_correct.strip().lower()]
     random.shuffle(def_wrongs)
     def_fallbacks = [
         f"{title} is purely a theoretical concept with no practical application.",
@@ -253,10 +259,10 @@ def make_questions(pack: Dict) -> List[Dict]:
     questions = [
         {
             "skill": SKILL_DEFINITION,
-            "q": f"Which of the following best describes {title}?",
+            "q": def_question,
             "options": _dedupe_shuffle(def_correct, def_wrongs),
             "answer": def_correct,
-            "why": f"This is the accurate definition of {title}.",
+            "why": f"This is the accurate definition of {def_subject}.",
         },
         {
             "skill": SKILL_CORE,
