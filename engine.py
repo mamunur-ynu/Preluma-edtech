@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import re
 from typing import Dict, List, Tuple
 
@@ -147,45 +148,56 @@ def build_brain_brief(pack: Dict) -> Dict:
     }
 
 def make_questions(pack: Dict) -> List[Dict]:
-    """Generate 4 topic-specific MCQ questions from the pack data."""
+    """Generate 4 topic-specific MCQ questions from the pack data.
+    Randomised each call so students get fresh questions on every attempt."""
     title = pack["title"]
     all_concepts = list(pack["concepts"].items())
-    concept_name, concept_data = _first_concept(pack)
 
-    apps          = list(pack["applications"].keys()) if pack["applications"] else []
-    app_name      = apps[0] if apps else "real-world problem solving"
+    # ── Randomly pick which concept/application/misconception to highlight ───
+    random.shuffle(all_concepts)          # rotate so Q2 isn't always the same concept
+    concept_name, concept_data = all_concepts[0]
+
+    apps = list(pack["applications"].keys()) if pack["applications"] else []
+    if len(apps) > 1:
+        random.shuffle(apps)              # rotate which application is featured in Q3
+    app_name = apps[0] if apps else "real-world problem solving"
+
     misconceptions = pack["misconceptions"] if pack["misconceptions"] else [f"{title} is only for experts"]
-    misconception  = misconceptions[0]
-    facts          = pack["facts"] if pack["facts"] else [pack["definition"]]
+    misconception  = random.choice(misconceptions)  # rotate misconceptions for Q4
 
-    def _dedupe(opts: list) -> list:
-        """Remove duplicates and ensure exactly 4 options."""
+    facts = pack["facts"] if pack["facts"] else [pack["definition"]]
+
+    def _dedupe_shuffle(correct: str, wrongs: list) -> list:
+        """Remove duplicates, ensure exactly 4 options, then shuffle order."""
         seen, out = set(), []
-        for o in opts:
+        correct_key = correct.strip().lower()[:100]
+        seen.add(correct_key)
+        for o in wrongs:
             k = str(o).strip().lower()[:100]
             if k and k not in seen:
                 seen.add(k)
                 out.append(o)
-        idx = 0
         pads = [
             f"An approach unrelated to {title}",
             f"A method that does not apply to {title}",
             f"A concept from a completely different field",
         ]
-        while len(out) < 4:
-            out.append(pads[idx % len(pads)])
-            idx += 1
-        return out[:4]
+        pad_idx = 0
+        while len(out) < 3:
+            out.append(pads[pad_idx % len(pads)])
+            pad_idx += 1
+        opts = [correct] + out[:3]       # exactly 4: 1 correct + 3 wrong
+        random.shuffle(opts)             # shuffle so correct isn't always option A
+        return opts
 
     # ── Q1 · Definition ──────────────────────────────────────────────────────
-    # Wrong options: definitions of OTHER concepts in this topic (topic-specific!)
     def_correct = pack["definition"]
     def_wrongs = [
         cd.get("definition", "")
-        for _, cd in all_concepts[1:4]
+        for _, cd in all_concepts[1:]
         if cd.get("definition", "").strip().lower() != def_correct.strip().lower()
     ]
-    # Fill with topic-relevant fallbacks if not enough concepts
+    random.shuffle(def_wrongs)
     def_fallbacks = [
         f"{title} is purely a theoretical concept with no practical application.",
         f"{title} refers to memorising facts without understanding their meaning.",
@@ -196,24 +208,24 @@ def make_questions(pack: Dict) -> List[Dict]:
             def_wrongs.append(fb)
 
     # ── Q2 · Core Concept ────────────────────────────────────────────────────
-    # Correct: first concept name. Wrong: other real concept names from this topic.
     core_correct = concept_name.title()
     core_wrongs  = [
-        n.title() for n, _ in all_concepts[1:4]
+        n.title() for n, _ in all_concepts[1:]
         if n.title().lower() != core_correct.lower()
     ]
+    random.shuffle(core_wrongs)
     core_fallbacks = ["Arbitrary Sampling", "Passive Recall", "Unstructured Repetition"]
     for fb in core_fallbacks:
         if len(core_wrongs) < 3:
             core_wrongs.append(fb)
 
     # ── Q3 · Application ─────────────────────────────────────────────────────
-    # Correct: first application. Wrong: other real applications from this topic.
     app_correct = app_name.title()
     app_wrongs  = [
-        a.title() for a in apps[1:4]
+        a.title() for a in apps[1:]
         if a.title().lower() != app_correct.lower()
     ]
+    random.shuffle(app_wrongs)
     app_fallbacks = [
         f"Replacing all understanding of {title} with memorisation only",
         f"Avoiding {title} in practical or real-world settings entirely",
@@ -224,12 +236,11 @@ def make_questions(pack: Dict) -> List[Dict]:
             app_wrongs.append(fb)
 
     # ── Q4 · Misconception ───────────────────────────────────────────────────
-    # Correct: first misconception. Wrong: REAL FACTS from the pack (true statements),
-    # so the student must identify the false one among truths.
     fact_wrongs = [
-        f for f in facts[:4]
+        f for f in facts
         if f.strip().lower() != misconception.strip().lower()
     ]
+    random.shuffle(fact_wrongs)
     fact_fallbacks = [
         f"{title} can be understood through clear definitions and examples.",
         f"Learning {title} involves both theory and real-world practice.",
@@ -239,36 +250,38 @@ def make_questions(pack: Dict) -> List[Dict]:
         if len(fact_wrongs) < 3:
             fact_wrongs.append(fb)
 
-    return [
+    questions = [
         {
             "skill": SKILL_DEFINITION,
             "q": f"Which of the following best describes {title}?",
-            "options": _dedupe([def_correct] + def_wrongs),
+            "options": _dedupe_shuffle(def_correct, def_wrongs),
             "answer": def_correct,
             "why": f"This is the accurate definition of {title}.",
         },
         {
             "skill": SKILL_CORE,
             "q": f"Which of the following is a key concept in {title}?",
-            "options": _dedupe([core_correct] + core_wrongs),
+            "options": _dedupe_shuffle(core_correct, core_wrongs),
             "answer": core_correct,
             "why": f"{core_correct} is a central concept in {title}.",
         },
         {
             "skill": SKILL_APPLICATION,
             "q": f"Which of the following is a real-world application of {title}?",
-            "options": _dedupe([app_correct] + app_wrongs),
+            "options": _dedupe_shuffle(app_correct, app_wrongs),
             "answer": app_correct,
             "why": f"{app_correct} is a genuine application of {title}.",
         },
         {
             "skill": SKILL_MISCONCEPTION,
             "q": f"Which of the following statements about {title} is a common misconception?",
-            "options": _dedupe([misconception] + fact_wrongs),
+            "options": _dedupe_shuffle(misconception, fact_wrongs),
             "answer": misconception,
             "why": f"This is a misconception about {title} — the other options are all correct statements.",
         },
     ]
+    random.shuffle(questions)   # also rotate which skill appears as Q1/Q2/Q3/Q4
+    return questions
 
 def grade(questions: List[Dict], answers: Dict[int, str]) -> Dict:
     details = []

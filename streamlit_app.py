@@ -2540,7 +2540,21 @@ def mission_mock_test_screen() -> None:
                 c1.markdown(f"**Your answer:** {detail['chosen'] or 'No answer'}")
                 c2.markdown(f"**Correct:** {detail['answer']}")
                 st.info(detail["why"])
-        _mission_navigation(3, 5, "View Final Overview")
+        # Try Again button — generates completely new questions from the same pack
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+        col_retry, col_next_ov = st.columns(2)
+        with col_retry:
+            if st.button("🔄 Try Again (New Questions)", use_container_width=True):
+                # Regenerate questions with fresh randomisation
+                from engine import make_questions as _mq
+                st.session_state.questions = _mq(st.session_state.pack)
+                st.session_state.quiz_result = None
+                st.session_state._mock_q_index = 0
+                for _k in [k for k in st.session_state if k.startswith("_saved_mock_ans_")]:
+                    st.session_state.pop(_k, None)
+                st.rerun()
+        with col_next_ov:
+            _mission_navigation(3, 5, "View Final Overview")
         return
 
     # One-question-at-a-time flow
