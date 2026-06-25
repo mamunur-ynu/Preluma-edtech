@@ -1247,6 +1247,29 @@ def home_page():
     """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+    # ── Announcement banner for students (unread notifications) ─────────────
+    _home_role = st.session_state.get("user_role", "student")
+    if _home_role == "student" and student != "Guest":
+        _home_notifs = notifications_for_student(student, unread_only=True)
+        _ann_notifs = [n for n in _home_notifs if n.get("Type") == "Announcement"]
+        if _ann_notifs:
+            for _ann in _ann_notifs[-3:]:  # Show up to 3 most recent announcements
+                st.markdown(
+                    f"<div style='"
+                    f"background:linear-gradient(135deg,rgba(251,146,60,.12),rgba(249,115,22,.08));"
+                    f"border:1px solid rgba(251,146,60,.35);border-radius:14px;"
+                    f"padding:14px 18px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;'>"
+                    f"<span style='font-size:18px;'>📢</span>"
+                    f"<div>"
+                    f"<div style='font-size:13px;font-weight:800;color:#fb923c;margin-bottom:3px;'>"
+                    f"{_ann.get('Title','Announcement')}</div>"
+                    f"<div style='font-size:12px;color:#cbd5e1;line-height:1.55;'>"
+                    f"{_ann.get('Message','')}</div>"
+                    f"</div></div>",
+                    unsafe_allow_html=True,
+                )
+
     # Stats row
     stats = [("29", "AI Topics", "#38bdf8"), ("5", "Mission Steps", "#818cf8"),
              ("3+", "Algorithms", "#34d399"), ("6+", "AI Providers", "#fb923c")]
