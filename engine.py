@@ -148,146 +148,252 @@ def build_brain_brief(pack: Dict) -> Dict:
     }
 
 def make_questions(pack: Dict) -> List[Dict]:
-    """Generate 4 topic-specific MCQ questions from the pack data.
-    Randomised each call so students get fresh questions on every attempt."""
+    """Build a large pool of varied questions then randomly pick 4.
+    Each call draws different question TYPES and content from the pack,
+    so students get genuinely fresh practice every attempt."""
     title = pack["title"]
-    all_concepts = list(pack["concepts"].items())
+    all_concepts  = list(pack["concepts"].items())
+    apps          = list(pack["applications"].keys()) if pack["applications"] else []
+    app_descs     = pack["applications"] if pack["applications"] else {}
+    misconceptions = pack["misconceptions"] if pack["misconceptions"] else [f"{title} is not only memorisation"]
+    facts         = pack["facts"] if pack["facts"] else [pack["definition"]]
 
-    # ── Randomly pick which concept/application/misconception to highlight ───
-    random.shuffle(all_concepts)          # rotate so Q2 isn't always the same concept
-    concept_name, concept_data = all_concepts[0]
-
-    apps = list(pack["applications"].keys()) if pack["applications"] else []
-    if len(apps) > 1:
-        random.shuffle(apps)              # rotate which application is featured in Q3
-    app_name = apps[0] if apps else "real-world problem solving"
-
-    misconceptions = pack["misconceptions"] if pack["misconceptions"] else [f"{title} is only for experts"]
-    misconception  = random.choice(misconceptions)  # rotate misconceptions for Q4
-
-    facts = pack["facts"] if pack["facts"] else [pack["definition"]]
-
-    def _dedupe_shuffle(correct: str, wrongs: list) -> list:
-        """Remove duplicates, ensure exactly 4 options, then shuffle order."""
+    def _q(skill: str, q: str, correct: str, wrongs: list, why: str) -> Dict:
+        """Build one question dict: deduped & shuffled options."""
         seen, out = set(), []
-        correct_key = correct.strip().lower()[:100]
-        seen.add(correct_key)
-        for o in wrongs:
-            k = str(o).strip().lower()[:100]
+        seen.add(correct.strip().lower()[:120])
+        for w in wrongs:
+            k = str(w).strip().lower()[:120]
             if k and k not in seen:
                 seen.add(k)
-                out.append(o)
+                out.append(str(w).strip())
         pads = [
             f"An approach unrelated to {title}",
             f"A method that does not apply to {title}",
             f"A concept from a completely different field",
         ]
-        pad_idx = 0
+        pi = 0
         while len(out) < 3:
-            out.append(pads[pad_idx % len(pads)])
-            pad_idx += 1
-        opts = [correct] + out[:3]       # exactly 4: 1 correct + 3 wrong
-        random.shuffle(opts)             # shuffle so correct isn't always option A
-        return opts
+            out.append(pads[pi % len(pads)])
+            pi += 1
+        opts = [correct.strip()] + out[:3]
+        random.shuffle(opts)
+        return {"skill": skill, "q": q, "options": opts, "answer": correct.strip(), "why": why}
 
-    # ── Q1 · Definition ──────────────────────────────────────────────────────
-    # Randomly ask about the topic-level definition OR a specific concept's definition
-    _def_candidates = [(title, pack["definition"], f"Which of the following best describes {title}?")]
-    for _cn, _cd in all_concepts:
-        _cdef = _cd.get("definition", "").strip()
-        if _cdef and _cdef.lower() != pack["definition"].strip().lower():
-            _def_candidates.append((_cn.title(), _cdef, f"Which of the following best describes {_cn.title()} in {title}?"))
-    _def_choice = random.choice(_def_candidates)
-    def_subject, def_correct, def_question = _def_choice
+    pool: List[Dict] = []
 
-    # Wrong options: all other definitions (topic + concept) except the chosen one
-    _all_defs = [pack["definition"]] + [cd.get("definition","") for _, cd in all_concepts]
-    def_wrongs = [d for d in _all_defs if d.strip() and d.strip().lower() != def_correct.strip().lower()]
-    random.shuffle(def_wrongs)
-    def_fallbacks = [
-        f"{title} is purely a theoretical concept with no practical application.",
-        f"{title} refers to memorising facts without understanding their meaning.",
-        f"{title} is an advanced process only experts can use — beginners cannot learn it.",
-    ]
-    for fb in def_fallbacks:
-        if len(def_wrongs) < 3:
-            def_wrongs.append(fb)
+    all_concept_names = [n.title() for n, _ in all_concepts]
+    all_concept_defs  = [(n.title(), cd.get("definition",""), cd.get("example",""),
+                          cd.get("mistake",""), cd.get("kid","")) for n, cd in all_concepts]
 
-    # ── Q2 · Core Concept ────────────────────────────────────────────────────
-    core_correct = concept_name.title()
-    core_wrongs  = [
-        n.title() for n, _ in all_concepts[1:]
-        if n.title().lower() != core_correct.lower()
-    ]
-    random.shuffle(core_wrongs)
-    core_fallbacks = ["Arbitrary Sampling", "Passive Recall", "Unstructured Repetition"]
-    for fb in core_fallbacks:
-        if len(core_wrongs) < 3:
-            core_wrongs.append(fb)
+    def other_names(correct):
+        return [n for n in all_concept_names if n.lower() != correct.lower()]
 
-    # ── Q3 · Application ─────────────────────────────────────────────────────
-    app_correct = app_name.title()
-    app_wrongs  = [
-        a.title() for a in apps[1:]
-        if a.title().lower() != app_correct.lower()
-    ]
-    random.shuffle(app_wrongs)
-    app_fallbacks = [
-        f"Replacing all understanding of {title} with memorisation only",
-        f"Avoiding {title} in practical or real-world settings entirely",
-        f"Using {title} only as an entertainment tool with no learning outcome",
-    ]
-    for fb in app_fallbacks:
-        if len(app_wrongs) < 3:
-            app_wrongs.append(fb)
+    # === DEFINITION questions ===
 
-    # ── Q4 · Misconception ───────────────────────────────────────────────────
-    fact_wrongs = [
-        f for f in facts
-        if f.strip().lower() != misconception.strip().lower()
-    ]
-    random.shuffle(fact_wrongs)
-    fact_fallbacks = [
-        f"{title} can be understood through clear definitions and examples.",
-        f"Learning {title} involves both theory and real-world practice.",
-        f"Students improve at {title} by asking questions and studying examples.",
-    ]
-    for fb in fact_fallbacks:
-        if len(fact_wrongs) < 3:
-            fact_wrongs.append(fb)
+    # D1 - "Which best describes <title>?"
+    pool.append(_q(
+        SKILL_DEFINITION,
+        f"Which of the following best describes {title}?",
+        pack["definition"],
+        [cd for _, cd, *_ in all_concept_defs if cd and cd.lower() != pack["definition"].lower()] +
+        [f"{title} is purely theoretical with no practical use.",
+         f"{title} is an advanced process only experts can use."],
+        f"This is the accurate definition of {title}.",
+    ))
 
-    questions = [
-        {
-            "skill": SKILL_DEFINITION,
-            "q": def_question,
-            "options": _dedupe_shuffle(def_correct, def_wrongs),
-            "answer": def_correct,
-            "why": f"This is the accurate definition of {def_subject}.",
-        },
-        {
-            "skill": SKILL_CORE,
-            "q": f"Which of the following is a key concept in {title}?",
-            "options": _dedupe_shuffle(core_correct, core_wrongs),
-            "answer": core_correct,
-            "why": f"{core_correct} is a central concept in {title}.",
-        },
-        {
-            "skill": SKILL_APPLICATION,
-            "q": f"Which of the following is a real-world application of {title}?",
-            "options": _dedupe_shuffle(app_correct, app_wrongs),
-            "answer": app_correct,
-            "why": f"{app_correct} is a genuine application of {title}.",
-        },
-        {
-            "skill": SKILL_MISCONCEPTION,
-            "q": f"Which of the following statements about {title} is a common misconception?",
-            "options": _dedupe_shuffle(misconception, fact_wrongs),
-            "answer": misconception,
-            "why": f"This is a misconception about {title} — the other options are all correct statements.",
-        },
-    ]
-    random.shuffle(questions)   # also rotate which skill appears as Q1/Q2/Q3/Q4
-    return questions
+    # D2 - "How would you explain <title> simply?"
+    pool.append(_q(
+        SKILL_DEFINITION,
+        f"How would you explain {title} to someone with no prior knowledge?",
+        pack["simple"],
+        [pack["definition"],
+         f"By listing all the technical terms in {title} without context.",
+         f"By memorising every formula related to {title}.",
+         f"By reading advanced textbooks about {title} first."],
+        f"A simple, accessible explanation is the best starting point for {title}.",
+    ))
+
+    # D3 - random concept definition
+    if all_concept_defs:
+        cn, cdef, cex, cmistake, ckid = random.choice(all_concept_defs)
+        if cdef:
+            wrongs_d3 = [d for n2, d, *_ in all_concept_defs if d and n2 != cn and d.lower() != cdef.lower()]
+            wrongs_d3 += [f"{cn} is the same as memorising facts about {title}.",
+                          f"{cn} refers to avoiding {title} altogether."]
+            pool.append(_q(
+                SKILL_DEFINITION,
+                f"Which of the following best describes '{cn}' within {title}?",
+                cdef, wrongs_d3,
+                f"'{cn}' is defined as: {cdef}",
+            ))
+
+    # D4 - "Which statement is TRUE?" (fact vs misconception)
+    if facts:
+        true_fact = random.choice(facts)
+        pool.append(_q(
+            SKILL_DEFINITION,
+            f"Which of the following statements about {title} is TRUE?",
+            true_fact,
+            misconceptions[:3] + [f"{title} has no connection to real-world problems."],
+            f"This is a verified fact about {title}.",
+        ))
+
+    # === CORE CONCEPT questions ===
+
+    if all_concepts:
+        # C1 - "Which is a key concept?"
+        c1_name, c1_data = random.choice(all_concepts)
+        pool.append(_q(
+            SKILL_CORE,
+            f"Which of the following is a key concept in {title}?",
+            c1_name.title(),
+            other_names(c1_name.title()) + ["Arbitrary Sampling", "Passive Recall", "Unstructured Repetition"],
+            f"'{c1_name.title()}' is a central concept in {title}.",
+        ))
+
+        # C2 - "What does studying <concept> involve?"
+        c2_name, c2_data = random.choice(all_concepts)
+        kid = c2_data.get("kid", "").strip()
+        if kid:
+            pool.append(_q(
+                SKILL_CORE,
+                f"What does understanding '{c2_name.title()}' in {title} involve?",
+                kid,
+                [c2_data.get("mistake", "Memorising without understanding."),
+                 f"Skipping {c2_name.title()} and focusing only on other parts of {title}.",
+                 f"Treating {c2_name.title()} as an optional topic in {title}."],
+                f"Understanding '{c2_name.title()}' means: {kid}",
+            ))
+
+        # C3 - "What is a common mistake with <concept>?"
+        c3_name, c3_data = random.choice(all_concepts)
+        mistake = c3_data.get("mistake", "").strip()
+        if mistake:
+            pool.append(_q(
+                SKILL_CORE,
+                f"What is a common mistake when studying '{c3_name.title()}' in {title}?",
+                mistake,
+                [c3_data.get("definition", ""),
+                 f"Spending too much time on examples of {c3_name.title()}.",
+                 f"Asking too many questions about {c3_name.title()} in class."],
+                f"A common mistake with '{c3_name.title()}': {mistake}",
+            ))
+
+        # C4 - "Which example illustrates <concept>?"
+        c4_name, c4_data = random.choice(all_concepts)
+        example = c4_data.get("example", "").strip()
+        if example:
+            other_examples = [cd.get("example","") for _, cd in all_concepts
+                              if cd.get("example","").strip() and cd.get("example","").lower() != example.lower()]
+            pool.append(_q(
+                SKILL_CORE,
+                f"Which example best illustrates '{c4_name.title()}' in {title}?",
+                example,
+                other_examples + [f"A situation completely unrelated to {title}.",
+                                  f"An example that contradicts the principles of {title}."],
+                f"This example correctly illustrates '{c4_name.title()}'.",
+            ))
+
+    # === APPLICATION questions ===
+
+    if apps:
+        # A1 - "Which is a real-world application?"
+        a1 = random.choice(apps)
+        pool.append(_q(
+            SKILL_APPLICATION,
+            f"Which of the following is a real-world application of {title}?",
+            a1.title(),
+            [a.title() for a in apps if a.lower() != a1.lower()] +
+            [f"Replacing all study of {title} with memorisation only",
+             f"Avoiding {title} in real-world settings entirely"],
+            f"'{a1.title()}' is a genuine application of {title}.",
+        ))
+
+        # A2 - "How is <title> applied in <context>?"
+        a2 = random.choice(apps)
+        desc = app_descs.get(a2, "").strip()
+        if desc:
+            pool.append(_q(
+                SKILL_APPLICATION,
+                f"How is {title} applied in the context of '{a2.title()}'?",
+                desc,
+                [app_descs.get(a, "") for a in apps if a != a2 and app_descs.get(a, "").strip()] +
+                [f"It is not applied in '{a2.title()}' at all.",
+                 f"{title} is used only for theoretical study, not in '{a2.title()}'."],
+                f"In '{a2.title()}', {title} is used as follows: {desc}",
+            ))
+
+        # A3 - "Which does NOT belong?" (negative)
+        pool.append(_q(
+            SKILL_APPLICATION,
+            f"Which of the following is NOT a valid application of {title}?",
+            f"Using {title} only as entertainment with no learning outcome",
+            [a.title() for a in apps[:3]],
+            f"The other options are all real applications of {title}.",
+        ))
+
+    # === MISCONCEPTION questions ===
+
+    # M1 - "Which is a misconception?"
+    m1 = random.choice(misconceptions)
+    pool.append(_q(
+        SKILL_MISCONCEPTION,
+        f"Which of the following statements about {title} is a common misconception?",
+        m1,
+        [f for f in facts if f.strip().lower() != m1.strip().lower()] +
+        [f"{title} can be understood through clear definitions and examples.",
+         f"Learning {title} involves both theory and real-world practice."],
+        f"This is a misconception. The other options are correct statements about {title}.",
+    ))
+
+    # M2 - "Which statement is FALSE?"
+    m2 = random.choice(misconceptions)
+    sample_facts = random.sample(facts, min(3, len(facts))) if len(facts) >= 3 else         facts + [f"Students improve at {title} by asking questions."]
+    pool.append(_q(
+        SKILL_MISCONCEPTION,
+        f"Which of the following statements about {title} is FALSE?",
+        m2,
+        sample_facts,
+        f"This statement is false — it is a common misconception about {title}.",
+    ))
+
+    # M3 - "A student claims X. Why is this wrong?"
+    if misconceptions and facts:
+        m3 = random.choice(misconceptions)
+        rebuttal = random.choice(facts)
+        pool.append(_q(
+            SKILL_MISCONCEPTION,
+            f"A student claims: '{m3}'. Why is this incorrect?",
+            rebuttal,
+            [mc for mc in misconceptions if mc != m3][:2] +
+            [f"It is not incorrect — the student is right about {title}.",
+             f"The claim is partially true and should be accepted."],
+            f"The correct understanding is: {rebuttal}",
+        ))
+
+    # === Pick 4: one from each skill type if available ===
+    by_skill: Dict[str, List[Dict]] = {}
+    for q in pool:
+        by_skill.setdefault(q["skill"], []).append(q)
+
+    chosen: List[Dict] = []
+    skills_order = [SKILL_DEFINITION, SKILL_CORE, SKILL_APPLICATION, SKILL_MISCONCEPTION]
+    random.shuffle(skills_order)
+    for skill in skills_order:
+        if by_skill.get(skill):
+            chosen.append(random.choice(by_skill[skill]))
+        if len(chosen) == 4:
+            break
+
+    remaining = [q for q in pool if q not in chosen]
+    random.shuffle(remaining)
+    while len(chosen) < 4 and remaining:
+        chosen.append(remaining.pop())
+
+    random.shuffle(chosen)
+    return chosen[:4]
+
 
 def grade(questions: List[Dict], answers: Dict[int, str]) -> Dict:
     details = []
