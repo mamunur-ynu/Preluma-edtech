@@ -2557,11 +2557,14 @@ def mission_mock_test_screen() -> None:
     """, unsafe_allow_html=True)
 
     answer_key = f"mock_ans_{idx}"
+    # Restore previously saved answer (widget state is cleared when navigating away)
+    _prev_saved = st.session_state.get(f"_saved_mock_ans_{idx}")
+    _default_idx = q["options"].index(_prev_saved) if _prev_saved in q["options"] else None
     chosen = st.radio(
         "Choose your answer",
         q["options"],
         key=answer_key,
-        index=None,
+        index=_default_idx,
         label_visibility="collapsed",
     )
 
@@ -2570,20 +2573,22 @@ def mission_mock_test_screen() -> None:
 
     with col_prev:
         if idx > 0 and st.button("← Back", use_container_width=True):
+            st.session_state[f"_saved_mock_ans_{idx}"] = chosen  # save before leaving
             st.session_state._mock_q_index = idx - 1
             st.rerun()
 
     with col_next:
         label = "Submit Mock Test" if is_last else f"Next Question →"
         if st.button(label, use_container_width=True, type="primary"):
+            st.session_state[f"_saved_mock_ans_{idx}"] = chosen  # save before leaving
             if not is_last:
                 st.session_state._mock_q_index = idx + 1
                 st.rerun()
             else:
-                # Collect all answers and grade
+                # Collect all saved answers and grade
                 answers = {}
                 for i in range(total):
-                    answers[i] = st.session_state.get(f"mock_ans_{i}", "")
+                    answers[i] = st.session_state.get(f"_saved_mock_ans_{i}", "")
                 result = grade(questions, answers)
                 _save_mission_quiz_result(result)
                 st.session_state._mock_q_index = 0
@@ -2659,6 +2664,9 @@ def mission_overview_screen() -> None:
         if st.button("Start a New Mission", use_container_width=True):
             for key in ["pack", "brief", "questions", "quiz_result", "class_questions"]:
                 st.session_state.pop(key, None)
+            # Clear saved mock test answers
+            for _k in [k for k in st.session_state if k.startswith("_saved_mock_ans_")]:
+                st.session_state.pop(_k, None)
             st.session_state.mission_started = False
             st.session_state.mission_step = 0
             st.rerun()
