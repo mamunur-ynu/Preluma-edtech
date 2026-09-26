@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Ping Preluma app
         run: |
-          curl -sSL -o /dev/null -w "status=%{http_code}\n" https://prelumaedtech.streamlit.app/ || true
+          curl -sSL -b "" -c /tmp/cookies.txt --max-redirs 10 -o /dev/null -w "status=%{http_code}\n" https://prelumaedtech.streamlit.app/ || true
