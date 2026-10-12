@@ -86,6 +86,7 @@ def get_rag() -> RAGEngine:
                 vector_backend=settings.vector_backend,
             )
             engine.index_missing(pack_to_documents(TOPICS))
+            reconcile_document_index(engine)
             _rag = engine
         return _rag
 
@@ -95,6 +96,44 @@ def set_rag(engine: RAGEngine | None) -> None:
     global _rag
     with _rag_lock:
         _rag = engine
+
+
+def reconcile_document_index(engine: RAGEngine) -> dict[str, int]:
+    """Fail closed after interrupted uploads/deletes; never invent lost source text.
+
+    The database is authoritative for uploaded-document ownership. An index entry
+    without matching metadata is removed; a database row whose chunks disappeared
+    remains visible to its owner with ``n_chunks=0`` so it can be re-uploaded.
+    """
+    removed = missing = repaired = 0
+    with session_scope() as s:
+        records = {f"doc:{row.id}": row for row in KnowledgeDocumentRepository(s).list_all()}
+        for doc_id, count in engine.store.documents().items():
+            if not doc_id.startswith("doc:"):
+                continue
+            row = records.get(doc_id)
+            metadata = engine.store.document_metadata(doc_id) or {}
+            expected = ({"course_id": row.course_id, "uploaded_by": row.uploaded_by,
+                         "visibility": row.visibility, "content_sha256": row.content_sha256}
+                        if row is not None else None)
+            if row is None or any(metadata.get(key) != value for key, value in expected.items()) or (
+                row.n_chunks > 0 and row.n_chunks != count
+            ):
+                engine.delete_document(doc_id)
+                removed += 1
+                if row is not None:
+                    row.n_chunks = 0
+                continue
+            if row.n_chunks != count:
+                row.n_chunks = count
+                repaired += 1
+        for doc_id, row in records.items():
+            if not engine.store.has_document(doc_id) and row.n_chunks:
+                row.n_chunks = 0
+                missing += 1
+    if removed or missing or repaired:
+        logger.warning("Reconciled document index: removed=%d missing=%d repaired=%d", removed, missing, repaired)
+    return {"removed": removed, "missing": missing, "repaired": repaired}
 
 
 # ── provider status (replaces the old llm.py helpers) ────────────────────────
@@ -434,10 +473,10 @@ def remove_document(document_id: int, actor_id: int) -> bool:
             return False
         if actor.role != "admin" and document.uploaded_by != actor.id:
             raise PermissionError("You may only remove documents that you uploaded.")
-        deleted = docs.delete(document_id)
-    if deleted:
+        # Remove searchable content first. If DB deletion later fails, the
+        # retained metadata points to an unavailable document (safe to retry).
         get_rag().delete_document(f"doc:{document_id}")
-    return deleted
+        return docs.delete(document_id)
 
 
 def rag_stats() -> dict:

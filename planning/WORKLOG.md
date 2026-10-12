@@ -30,3 +30,10 @@
 - Global teacher roster, individual course roster, mistakes and completion aggregates are limited to accessible enrollments. Negative tests cover student/inactive actor, cross-owner course and student access, and other-class mistake leakage.
 - Executed focused tests: 13 passed in 4.68 s. Full suite: 126 passed in 5.03 s. Ruff passed; remaining gates are recorded in the milestone report after they finish.
 - Limitation: attempts/mastery lack course provenance, so course-specific metrics for a student enrolled in multiple courses may include their other learning activity. DATA-03 records the schema work needed; this milestone claims roster privacy, not precise course-specific activity.
+
+## 2026-10-13, 06:50 Asia/Shanghai — DATA-02
+
+- Startup now reconciles uploaded document metadata with persisted vector IDs, counts and privacy attributes. Orphan/tampered vectors are removed; missing vectors leave database rows with zero chunks so owners can re-upload. A saved index whose DB chunk count was not yet committed is repaired.
+- Delete now removes searchable vectors before committing database deletion, so an index failure retains metadata for retry. Tests simulate interrupted deletion, missing vectors, tampered visibility/owner, incomplete count commit and failed index deletion.
+- Executed 33 focused AI/security/recovery tests in 1.24 s before the final delete-order test; final full suite 130 passed in 5.13 s. Ruff, compileall, Bandit and pip-audit all PASS.
+- This is local startup recovery, not multi-worker synchronization. Raw source text is not retained after upload; missing chunks require re-upload. DATA-04 records the distributed index gap.

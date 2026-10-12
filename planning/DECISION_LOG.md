@@ -19,3 +19,7 @@ Decision: every successful login creates an opaque, revocable server session tok
 ## ADR-005 — Teacher analytics roster scope and shared catalog
 
 Decision: active teachers may view students enrolled in their published courses or the ownerless default/shared published catalog; admins may view all students. Per-course access and drill-down are checked again in services, not just filtered in selectors. Aggregate mistake counts use the same roster. This matches the existing completion-report rule and preserves shared default teaching. Limitation: quiz attempts and mastery have no course key; per-course metrics are roster-scoped, not activity-scoped. DATA-03 tracks the schema remedy. Rollback: revert SEC-04 commit if necessary, but then block teacher analytics because the older service accepted arbitrary IDs.
+
+## ADR-006 — Database-authoritative uploaded-document recovery
+
+Decision: the database is authoritative for document ownership and privacy metadata. On local index startup, remove uploaded vectors with no matching DB record or mismatched scope/count, repair a completed vector write whose DB count commit was interrupted, and mark missing vectors as zero-chunk rows requiring re-upload. Delete searchable vectors before committing metadata removal. Reason: this fails closed in common crash windows without storing private source bytes. Rollback: revert DATA-02, but block uploaded-document use because stale vectors could remain after interrupted deletion. Multi-worker coordination is not solved by this decision (DATA-04).
