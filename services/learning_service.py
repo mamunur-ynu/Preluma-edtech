@@ -49,6 +49,7 @@ from database.repository import (
     UserRepository,
 )
 from services._common import now_utc, title_for, topic_key
+from services._access import require_active_user
 
 logger = logging.getLogger("preluma.learning")
 
@@ -119,6 +120,7 @@ def _load_profile(session, user_id: int) -> dict[MasteryKey, MasteryState]:
 def get_profile(user_id: int) -> dict[MasteryKey, MasteryState]:
     """The student's mastery table: ``{(topic, concept): MasteryState}``."""
     with session_scope() as s:
+        require_active_user(s, user_id)
         return _load_profile(s, user_id)
 
 
@@ -201,8 +203,7 @@ def record_quiz_attempt(
     ]
 
     with session_scope() as s:
-        if UserRepository(s).get(user_id) is None:
-            raise LookupError(f"Unknown user id {user_id}")
+        require_active_user(s, user_id)
         attempt = QuizAttemptRepository(s).add(
             QuizAttempt(
                 user_id=user_id, topic=key, source=source, score=score, total=total,
@@ -279,6 +280,7 @@ def get_snapshot(user_id: int) -> StudentSnapshot:
 def style_signals(user_id: int) -> tuple[list[str], list[str]]:
     """(question styles from AI chat, learning modes from attempts) — inputs for style inference."""
     with session_scope() as s:
+        require_active_user(s, user_id)
         styles = [m.question_style for m in ConversationRepository(s).recent_user_messages(user_id, 200) if m.question_style]
         modes = [a.learning_mode for a in QuizAttemptRepository(s).list_for_user(user_id, limit=200) if a.learning_mode]
     return styles, modes
@@ -288,9 +290,7 @@ def get_dashboard(user_id: int) -> StudentDashboard:
     """Everything the student dashboard shows, computed in one call."""
     now = now_utc()
     with session_scope() as s:
-        user = UserRepository(s).get(user_id)
-        if user is None:
-            raise LookupError(f"Unknown user id {user_id}")
+        user = require_active_user(s, user_id)
         profile = _load_profile(s, user_id)
         attempts = list(QuizAttemptRepository(s).list_for_user(user_id))
         streak = streak_info(_activity_days(s, user_id), now.date())
@@ -338,6 +338,7 @@ def get_dashboard(user_id: int) -> StudentDashboard:
 
 def recent_mistakes(user_id: int, limit: int = 10) -> list[dict[str, str]]:
     with session_scope() as s:
+        require_active_user(s, user_id)
         return [
             {"topic": title_for(m.topic), "concept": m.concept, "skill": m.skill, "question": m.question,
              "your_answer": m.student_answer, "correct_answer": m.correct_answer}
@@ -348,9 +349,8 @@ def recent_mistakes(user_id: int, limit: int = 10) -> list[dict[str, str]]:
 def set_learning_style(user_id: int, style: str | None) -> None:
     with session_scope() as s:
         repo = UserRepository(s)
-        user = repo.get(user_id)
-        if user is not None:
-            repo.set_learning_style(user, style or None)
+        user = require_active_user(s, user_id)
+        repo.set_learning_style(user, style or None)
 
 
 __all__ = [

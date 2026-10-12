@@ -151,6 +151,7 @@ Observed delivery results are recorded in [`reports/FINAL_VERIFICATION.md`](repo
 
 - Homework/projects/announcements/profile extras still run through compatibility adapters backed by legacy CSV/Supabase storage. Relational target tables and a safe importer now exist, but production cutover is intentionally blocked until real-data reconciliation is reviewed.
 - The persistent Streamlit browser-session bridge is not production-safe and is off by default. Use an external auth gateway or the future FastAPI transport with secure cookies.
+- Each ordinary login now has a revocable server session. Open tabs refresh identity on every rerun, so account deactivation, password change and role change take effect without relying on stale UI state.
 - PostgreSQL, Supabase RLS, production object storage, paid/live LLM calls and real production credentials were not available and are **not verified**.
 - The default hashing embedder is a reliable lexical/offline fallback, not evidence of semantic retrieval quality.
 - Existing screenshots under `docs/` are historical. Current desktop/tablet/mobile pages were visually inspected during this release, but the browser capture interface did not provide a filesystem export for new screenshot files.

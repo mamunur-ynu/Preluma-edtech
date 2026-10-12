@@ -10,7 +10,7 @@ Students, teachers and uploaded course documents are untrusted. Attackers may mo
 
 | Risk | Before | Implemented evidence | Residual status |
 |---|---|---|---|
-| Persistent token in localStorage/query | Enabled by “keep me logged in” | Disabled by default; guarded by `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION`; checkbox disabled otherwise; server tokens remain hashed/revocable | **High production blocker** until external gateway/FastAPI secure cookie transport exists |
+| Persistent token in localStorage/query | Enabled by “keep me logged in” | Disabled by default; guarded by `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION`; checkbox disabled otherwise; every login now creates a revocable server session and each rerun refreshes the active identity/role | **High production blocker** until external gateway/FastAPI secure cookie transport exists |
 | Actor username spoofing in reset/admin services | Actor selected by username string | `issue_reset_code` and `set_active` require actor ID loaded from the server-owned authenticated session; negative role tests | Fixed for current UI contract; future API must resolve actor ID server-side |
 | Multiple valid reset codes | Older codes stayed usable | New issuance invalidates all unused codes; one-time/expiry/throttle retained; behavioral test | Fixed |
 | Weak upload validation | Extension/size checks; project limit 100 MB | Central basename/extension/size/signature checks; text NUL/encoding checks; atomic private local writes; project limit 25 MB | Malware scanning/private object storage remain staging requirements |

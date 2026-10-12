@@ -23,6 +23,7 @@ from database.models import Recommendation
 from database.repository import RecommendationRepository
 from services import course_service, learning_service
 from services._common import now_utc, title_for
+from services._access import require_active_user
 
 logger = logging.getLogger("preluma.recommendations")
 
@@ -119,4 +120,5 @@ def mark_step(user_id: int, recommendation_id: int, status: str) -> bool:
     if status not in ("done", "dismissed"):
         raise ValueError("status must be 'done' or 'dismissed'")
     with session_scope() as s:
+        require_active_user(s, user_id)
         return RecommendationRepository(s).set_status(recommendation_id, user_id, status)

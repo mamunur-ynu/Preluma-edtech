@@ -23,6 +23,7 @@ from database.repository import (
     UserRepository,
 )
 from services._common import title_for, topic_key
+from services._access import require_active_user
 
 # Default catalogue: slug -> (title, description, level, topic keys)
 DEFAULT_COURSES: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
@@ -134,7 +135,7 @@ def create_course(owner_id: int, title: str, description: str, topic_keys: list[
     with session_scope() as s:
         courses, lessons = CourseRepository(s), LessonRepository(s)
         user = UserRepository(s).get(owner_id)
-        if user is None or user.role not in ("teacher", "admin"):
+        if user is None or not user.is_active or user.role not in ("teacher", "admin"):
             raise PermissionError("Only teachers can create courses.")
         base, n = slug, 1
         while courses.get_by_slug(slug):
@@ -150,6 +151,8 @@ def create_course(owner_id: int, title: str, description: str, topic_keys: list[
 def list_courses(user_id: int | None = None) -> list[CourseView]:
     """Published courses; with ``user_id`` the enrolment flag and progress are filled in."""
     with session_scope() as s:
+        if user_id is not None:
+            require_active_user(s, user_id)
         enrolled = set(EnrollmentRepository(s).course_ids_for_user(user_id)) if user_id else set()
         views = []
         for course in CourseRepository(s).list_published():
@@ -170,6 +173,8 @@ def get_course(course_id: int, user_id: int | None = None) -> CourseView | None:
     """One course with its lessons (and per-lesson progress when ``user_id`` is given)."""
     graph = build_graph()
     with session_scope() as s:
+        if user_id is not None:
+            require_active_user(s, user_id)
         course = CourseRepository(s).get(course_id)
         if course is None:
             return None
@@ -201,8 +206,12 @@ def get_course(course_id: int, user_id: int | None = None) -> CourseView | None:
 def enroll(user_id: int, course_id: int) -> bool:
     """Enrol a user.  Returns True if newly enrolled, False if they already were."""
     with session_scope() as s:
-        if CourseRepository(s).get(course_id) is None:
+        require_active_user(s, user_id)
+        course = CourseRepository(s).get(course_id)
+        if course is None:
             raise LookupError("Course not found.")
+        if not course.is_published:
+            raise PermissionError("This course is not open for enrolment.")
         _, created = EnrollmentRepository(s).enroll(user_id, course_id)
         return created
 
@@ -211,8 +220,12 @@ def update_lesson_progress(
     user_id: int, lesson_id: int, *, percent: float | None = None, completed: bool = False, seconds: int = 0
 ) -> None:
     with session_scope() as s:
-        if LessonRepository(s).get(lesson_id) is None:
+        require_active_user(s, user_id)
+        lesson = LessonRepository(s).get(lesson_id)
+        if lesson is None:
             raise LookupError("Lesson not found.")
+        if not EnrollmentRepository(s).is_enrolled(user_id, lesson.course_id):
+            raise PermissionError("Enrol in this course before recording progress.")
         ProgressRepository(s).upsert(
             user_id, lesson_id, status="completed" if completed else None, percent=percent, add_seconds=seconds
         )
@@ -221,7 +234,7 @@ def update_lesson_progress(
 def next_lesson(user_id: int, course_id: int) -> LessonView | None:
     """First not-yet-completed lesson of a course (the "Continue" button)."""
     course = get_course(course_id, user_id)
-    if course is None:
+    if course is None or not course.enrolled:
         return None
     return next((lesson for lesson in course.lessons if lesson.status != "completed"), None)
 
@@ -229,6 +242,7 @@ def next_lesson(user_id: int, course_id: int) -> LessonView | None:
 def enrolled_topic_keys(user_id: int) -> set[str]:
     """Topic keys of every lesson in the courses the student is enrolled in."""
     with session_scope() as s:
+        require_active_user(s, user_id)
         keys: set[str] = set()
         for course_id in EnrollmentRepository(s).course_ids_for_user(user_id):
             keys.update(lesson.topic_key for lesson in LessonRepository(s).list_for_course(course_id))
@@ -240,7 +254,7 @@ def course_completion_report(course_id: int, actor_id: int) -> list[dict[str, ob
     with session_scope() as s:
         actor = UserRepository(s).get(actor_id)
         course = CourseRepository(s).get(course_id)
-        if actor is None or actor.role not in ("teacher", "admin"):
+        if actor is None or not actor.is_active or actor.role not in ("teacher", "admin"):
             raise PermissionError("Only teachers or administrators may view class completion.")
         if course is None:
             raise LookupError("Course not found.")

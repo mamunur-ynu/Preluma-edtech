@@ -89,7 +89,9 @@ def set_active(actor_id: int, target_username: str, active: bool) -> tuple[bool,
         repo = UserRepository(s)
         actor = repo.get(actor_id)
         target = repo.get_by_username(target_username)
-        if actor is None or not (actor.role == "admin" or actor.username in settings.admin_usernames):
+        if actor is None or not actor.is_active or not (
+            actor.role == "admin" or actor.username in settings.admin_usernames
+        ):
             return False, "Only administrators can change account status."
         if target is None:
             return False, "Account not found."

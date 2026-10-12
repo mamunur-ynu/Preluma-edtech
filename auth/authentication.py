@@ -191,7 +191,7 @@ def user_for_session(token: str) -> AuthUser | None:
         return None
     with session_scope() as s:
         user = UserRepository(s).get(user_id)
-        return _to_auth_user(user) if user else None
+        return _to_auth_user(user) if user is not None and user.is_active else None
 
 
 def end_session(token: str) -> None:
@@ -230,7 +230,7 @@ def issue_reset_code(actor_id: int, target_username: str) -> tuple[bool, str]:
         repo = UserRepository(s)
         actor = repo.get(actor_id)
         target = repo.get_by_username(target_username)
-        if actor is None or actor.role not in (ROLE_TEACHER, ROLE_ADMIN):
+        if actor is None or not actor.is_active or actor.role not in (ROLE_TEACHER, ROLE_ADMIN):
             return False, "Only teachers or administrators can issue reset codes."
         if target is None:
             return False, "Account not found."

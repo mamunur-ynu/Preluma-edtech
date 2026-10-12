@@ -56,7 +56,8 @@ def test_service_stores_the_plan_and_marks_steps_done():
     assert plan.steps[0].kind == "revise" and plan.steps[0].id is not None
     assert "need attention" in plan.summary
     assert recommendation_service.mark_step(user.id, plan.steps[0].id, "done")
-    assert not recommendation_service.mark_step(user.id + 99, plan.steps[0].id, "done")   # not your recommendation
+    another = create_user("other-learner", "Passw0rd!xyz", "Other Learner")
+    assert not recommendation_service.mark_step(another.id, plan.steps[0].id, "done")  # not your recommendation
 
 
 def test_coach_note_uses_llm_when_available_and_degrades_gracefully(monkeypatch):

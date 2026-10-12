@@ -2,9 +2,9 @@
 
 This repository continues draft PR #2 on `feature/preluma-release-hardening`. The latest modular Streamlit implementation on this branch is the source of truth. Do not restore the older monolithic `main` application.
 
-Before changing code, read `PROJECT_STATE.md`, `docs/AUTOPILOT_ROADMAP.md`, `docs/TASK_QUEUE.md`, and `docs/AUTOPILOT_CHECKPOINT.md`. Read the complete owner-provided Autopilot master prompt if it becomes available; its requirements take precedence over these local notes. The prompt was not present in the workspace when this file was created.
+Before changing code, read `planning/CURRENT_STATE.md`, `planning/TASK_QUEUE.md`, `planning/WORKLOG.md`, and the relevant decisions in `planning/DECISION_LOG.md`. The owner-provided Autopilot master prompt is the governing specification; its complete text was read on 2026-10-13. Follow it if a local note differs.
 
-Work from the highest-priority unblocked item in `docs/TASK_QUEUE.md`. Implement one reviewable change at a time, add meaningful regression tests, run the relevant tests and release gates, then update the queue, worklog and checkpoint with exact evidence. Continue to the next safe item while execution time permits. Record unknowns as unknown; do not mark inherited claims as checks performed now.
+Work from the highest-priority unblocked item in `planning/TASK_QUEUE.md`. Implement one reviewable change at a time, add meaningful regression tests, run the relevant tests and release gates, then update the queue, worklog, decision log and checkpoint with exact evidence. Continue to the next safe item while execution time permits. Record unknowns as unknown; do not mark inherited claims as checks performed now.
 
 Preserve the Streamlit UI, modular service boundaries, all user workflows and the two original images:
 

@@ -44,6 +44,7 @@ from database.repository import (
     UserRepository,
 )
 from services._common import topic_key
+from services._access import require_active_user
 from security.rate_limit import InProcessRateLimiter
 
 logger = logging.getLogger("preluma.ai")
@@ -244,6 +245,9 @@ def ask_tutor(
     k: int = 4,
 ) -> TutorReply:
     """Answer a question with the structured tutor, grounded in retrieved course material."""
+    if user_id is not None:
+        with session_scope() as s:
+            require_active_user(s, user_id)
     _ai_limiter.check(f"tutor:{user_id if user_id is not None else 'anonymous'}")
     question = sanitize_text(question, MAX_QUESTION_CHARS)
     if not question:
@@ -291,6 +295,8 @@ class ChatReply:
 
 def chat(user_id: int, message: str, *, session_id: str | None = None, topic: str | None = None) -> ChatReply:
     """Free conversation with memory (last turns verbatim + summary of older ones)."""
+    with session_scope() as s:
+        require_active_user(s, user_id)
     _ai_limiter.check(f"chat:{user_id}")
     message = sanitize_text(message, MAX_QUESTION_CHARS)
     if not message:
@@ -328,12 +334,14 @@ def chat(user_id: int, message: str, *, session_id: str | None = None, topic: st
 
 def get_history(user_id: int, session_id: str, limit: int = 40) -> list[dict[str, str]]:
     with session_scope() as s:
+        require_active_user(s, user_id)
         return [{"role": m.role, "content": m.content, "sources": m.sources_json}
                 for m in ConversationRepository(s).history(user_id, session_id, limit)]
 
 
 def clear_session(user_id: int, session_id: str) -> int:
     with session_scope() as s:
+        require_active_user(s, user_id)
         return ConversationRepository(s).delete_session(user_id, session_id)
 
 
@@ -405,7 +413,7 @@ def index_document(filename: str, data: bytes, *, uploaded_by: int,
 def list_documents(actor_id: int) -> list[dict[str, object]]:
     with session_scope() as s:
         user = UserRepository(s).get(actor_id)
-        if user is None or user.role not in ("teacher", "admin"):
+        if user is None or not user.is_active or user.role not in ("teacher", "admin"):
             raise PermissionError("Only teachers or administrators may list knowledge documents.")
         course_ids = {course.id for course in CourseRepository(s).list_published()}
         return [{"id": d.id, "title": d.title, "source": d.source, "chunks": d.n_chunks,
@@ -420,7 +428,7 @@ def remove_document(document_id: int, actor_id: int) -> bool:
     with session_scope() as s:
         users, docs = UserRepository(s), KnowledgeDocumentRepository(s)
         actor, document = users.get(actor_id), docs.get(document_id)
-        if actor is None or actor.role not in ("teacher", "admin"):
+        if actor is None or not actor.is_active or actor.role not in ("teacher", "admin"):
             raise PermissionError("Only teachers or administrators may remove knowledge documents.")
         if document is None:
             return False

@@ -279,11 +279,9 @@ def login_page():
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 def _sign_in(user: AuthUser, remember: bool) -> None:
-    """Put the signed-in user into session state (and optionally remember the browser)."""
-    session_bridge.apply_user(user)
+    """Start a revocable server session and optionally persist it in the demo browser."""
+    session_bridge.begin_session(user, persist_in_browser=remember)
     st.session_state.active_page = "Home"
-    if remember:
-        session_bridge.remember(user)
     st.rerun()
 
 

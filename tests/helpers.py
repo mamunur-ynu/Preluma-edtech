@@ -20,13 +20,14 @@ def logged_in_app(role: str = "student", page: str = "Home"):
     """An ``AppTest`` that starts already signed in as a freshly created user of ``role``."""
     from streamlit.testing.v1 import AppTest
 
-    from auth import create_user, ensure_demo_users  # noqa: F401
+    from auth import create_user, ensure_demo_users, start_session  # noqa: F401
     from services.course_service import ensure_default_catalog
 
     ensure_default_catalog()
     user = create_user(f"{role}_tester", "Passw0rd!xyz", f"Test {role.title()}", role)
     at = AppTest.from_file(str(APP_FILE), default_timeout=60)
     at.session_state["logged_in"] = True
+    at.session_state["_session_token"] = start_session(user)
     at.session_state["user_id"] = user.id
     at.session_state["user_role"] = "teacher" if role == "admin" else role
     at.session_state["username"] = user.username

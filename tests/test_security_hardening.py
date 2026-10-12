@@ -8,13 +8,13 @@ from datetime import timedelta
 from ai.documents import SourceDocument, pack_to_documents
 from ai.embeddings import HashingEmbedder
 from ai.rag_engine import RAGEngine
-from auth import create_user
+from auth import create_user, issue_reset_code
 from database.connection import session_scope
-from database.models import AIConversationMessage, Course, utcnow
-from database.repository import ConversationRepository, CourseRepository, KnowledgeDocumentRepository
+from database.models import AIConversationMessage, Course, Lesson, utcnow
+from database.repository import ConversationRepository, CourseRepository, KnowledgeDocumentRepository, LessonRepository, UserRepository
 from security.rate_limit import InProcessRateLimiter, RateLimitExceeded
 from security.uploads import UploadPolicy, validate_upload
-from services import ai_service, course_service
+from services import ai_service, course_service, learning_service, recommendation_service, user_service
 
 PW = "Passw0rd!xyz"
 
@@ -155,3 +155,73 @@ def test_conversation_history_is_user_scoped_revocable_and_retained_for_a_bounde
     assert ai_service.get_history(second.id, session_id) == []
     assert ai_service.clear_session(second.id, session_id) == 0
     assert ai_service.clear_session(first.id, session_id) == len(first_history)
+
+
+def test_deactivated_account_cannot_use_private_ai_or_course_services():
+    student = create_user("disabled-student", PW, "Disabled Student")
+    teacher = create_user("disabled-teacher", PW, "Disabled Teacher", "teacher")
+    with session_scope() as session:
+        course = CourseRepository(session).add(Course(slug="active-check", title="Active Check", owner_id=teacher.id))
+        course_id = course.id
+        UserRepository(session).get(student.id).is_active = False
+        UserRepository(session).get(teacher.id).is_active = False
+    with pytest.raises(PermissionError):
+        ai_service.chat(student.id, "What is statistics?")
+    with pytest.raises(PermissionError):
+        ai_service.ask_tutor("What is statistics?", user_id=student.id)
+    with pytest.raises(PermissionError):
+        ai_service.get_history(student.id, "session")
+    with pytest.raises(PermissionError):
+        ai_service.clear_session(student.id, "session")
+    with pytest.raises(PermissionError):
+        course_service.enroll(student.id, course_id)
+    with pytest.raises(PermissionError):
+        course_service.list_courses(student.id)
+    with pytest.raises(PermissionError):
+        course_service.create_course(teacher.id, "Denied Course", "", ["statistics"])
+    with pytest.raises(PermissionError):
+        course_service.course_completion_report(course_id, teacher.id)
+    with pytest.raises(PermissionError):
+        ai_service.index_document("notes.txt", b"valid text", uploaded_by=teacher.id)
+
+
+def test_lesson_progress_requires_enrollment_and_active_account():
+    student = create_user("progress-student", PW, "Progress Student")
+    with session_scope() as session:
+        course = CourseRepository(session).add(Course(slug="progress-guard", title="Progress Guard"))
+        lesson = LessonRepository(session).add(
+            Lesson(course_id=course.id, topic_key="statistics", title="Statistics", order_index=1)
+        )
+        course_id, lesson_id = course.id, lesson.id
+    with pytest.raises(PermissionError):
+        course_service.update_lesson_progress(student.id, lesson_id, percent=100, completed=True)
+    assert course_service.next_lesson(student.id, course_id) is None
+    assert course_service.enroll(student.id, course_id)
+    course_service.update_lesson_progress(student.id, lesson_id, percent=100, completed=True)
+    assert course_service.get_course(course_id, student.id).completed_lessons == 1
+    with session_scope() as session:
+        UserRepository(session).get(student.id).is_active = False
+    with pytest.raises(PermissionError):
+        course_service.update_lesson_progress(student.id, lesson_id, percent=50)
+
+
+def test_deactivated_accounts_cannot_write_learning_data_or_administer_users():
+    student = create_user("inactive-learning", PW, "Inactive Learning")
+    teacher = create_user("inactive-resetter", PW, "Inactive Resetter", "teacher")
+    admin = create_user("inactive-admin", PW, "Inactive Admin", "admin")
+    learning_service.record_quiz_attempt(student.id, "statistics", 3, 5)
+    plan = recommendation_service.get_plan(student.id)
+    with session_scope() as session:
+        users = UserRepository(session)
+        for user_id in (student.id, teacher.id, admin.id):
+            users.get(user_id).is_active = False
+    with pytest.raises(PermissionError):
+        learning_service.record_quiz_attempt(student.id, "statistics", 5, 5)
+    with pytest.raises(PermissionError):
+        learning_service.get_dashboard(student.id)
+    with pytest.raises(PermissionError):
+        learning_service.get_profile(student.id)
+    with pytest.raises(PermissionError):
+        recommendation_service.mark_step(student.id, plan.steps[0].id, "done")
+    assert not issue_reset_code(teacher.id, student.username)[0]
+    assert not user_service.set_active(admin.id, student.username, True)[0]

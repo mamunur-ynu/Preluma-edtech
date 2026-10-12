@@ -2,7 +2,7 @@
 
 Updated: 2026-10-13
 
-Current source checkout: `/Users/mim/Desktop/Preluma/Preluma-edtech-vNEXT-git`, branch `feature/preluma-release-hardening`, draft PR #2. Resume from `docs/AUTOPILOT_CHECKPOINT.md` and `docs/TASK_QUEUE.md`.
+Current source checkout: `/Users/mim/Desktop/Preluma/Preluma-edtech-vNEXT-git`, branch `feature/preluma-release-hardening`, draft PR #2. Resume from `planning/CURRENT_STATE.md` and `planning/TASK_QUEUE.md`.
 
 ## Completed in this working copy
 

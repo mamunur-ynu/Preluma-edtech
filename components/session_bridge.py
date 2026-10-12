@@ -38,16 +38,37 @@ def persistence_available() -> bool:
     return get_settings().allow_legacy_browser_session
 
 
-def remember(user: AuthUser) -> bool:
-    """Create a server session for ``user`` and store its token in the browser."""
-    if not persistence_available():
-        return False
+def begin_session(user: AuthUser, *, persist_in_browser: bool = False) -> bool:
+    """Create a revocable server session for every login; optionally persist it for demos."""
     token = start_session(user)
     st.session_state["_session_token"] = token
-    if _TOKEN_RE.match(token):
+    apply_user(user)
+    if persist_in_browser and persistence_available() and _TOKEN_RE.fullmatch(token):
         _js(f"parent.localStorage.setItem('{STORAGE_KEY}','{token}');")
         return True
     return False
+
+
+def remember(user: AuthUser) -> bool:
+    """Backward-compatible demo helper; every login must use a server session."""
+    return begin_session(user, persist_in_browser=True)
+
+
+def clear_identity() -> None:
+    """Remove cached identity; a future rerun must authenticate again."""
+    for key in ("_session_token", "logged_in", "user_id", "user_role", "username", "student", "is_admin"):
+        st.session_state.pop(key, None)
+
+
+def refresh_current_user() -> bool:
+    """Refresh identity from the revocable server session before a protected page renders."""
+    token = st.session_state.get("_session_token", "")
+    user = user_for_session(token) if isinstance(token, str) and _TOKEN_RE.fullmatch(token) else None
+    if user is None:
+        clear_identity()
+        return False
+    apply_user(user)
+    return True
 
 
 def forget() -> None:

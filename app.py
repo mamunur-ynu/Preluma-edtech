@@ -176,9 +176,10 @@ def sidebar() -> str:
 
 
 def restore_login() -> None:
-    """Silently sign the user back in from the browser's saved token."""
+    """Revalidate the current server session or restore a demo browser session."""
     if st.session_state.get("logged_in"):
-        return
+        if session_bridge.refresh_current_user():
+            return
     user = session_bridge.try_restore()
     if user is not None:
         session_bridge.apply_user(user)
