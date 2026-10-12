@@ -23,11 +23,14 @@ Updated: 2026-10-13, Asia/Shanghai. Branch `feature/preluma-release-hardening`, 
 | Bandit (B311 demo randomness excluded) | PASS |
 | pip-audit for runtime and dev requirements | No known vulnerabilities found |
 | Campus/tower SHA-256 | Both match the required values in `AGENTS.md` |
+| Clean ZIP extraction | 130 tests passed in 6.87 s, Ruff passed, both image hashes matched; archive CRC valid |
 
 These tests use synthetic SQLite data and offline/mocked AI. Python 3.10, real PostgreSQL, RLS/private object storage, live paid providers, secure gateway and staging/production were NOT RUN. Current release status remains `DEMO_READY`, with production/pilot blockers listed in `planning/RELEASE_GATES.md`.
 
 Course views are roster-scoped but cannot isolate the learning activity of students enrolled in multiple courses: quiz attempts/mastery do not store a course ID. This is tracked as DATA-03. Teacher analytics should not be represented as precise per-course activity until that work is complete.
 
 The uploaded-document source bytes are not retained, so a lost index cannot be rebuilt automatically; owners must re-upload. JSON vector persistence is process-local and not safe as a coordinated multi-worker index. DATA-04 tracks that production blocker.
+
+Source package and SHA-256 checksum are delivered from `/Users/mim/Desktop/Preluma/Deliverables/`. After a further code change, regenerate and reverify the archive. Draft PR #2 remains unmerged; its checks were pending at the last recorded observation.
 
 No merge to `main`, deployment, production data mutation or paid API call was performed.

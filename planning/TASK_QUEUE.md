@@ -14,6 +14,6 @@ Statuses are `TODO`, `IN_PROGRESS`, `BLOCKED` or `DONE`. Select the highest-prio
 | DATA-03 | High / course-level privacy | TODO | Schema design, isolated migration | Add course provenance to attempts, mistakes and mastery so shared-enrolment students' activity can be isolated per course, not only per teacher roster. | Pending; do not claim course-specific metrics until implemented. |
 | DATA-04 | High / multi-worker index coherency | TODO | Shared storage/locking design | Replace process-local JSON vector index synchronization with coordinated storage or single-writer contract, then verify concurrent upload/delete visibility. | Pending; startup recovery is single-process only. |
 | UI-01 | Medium / usability | TODO | SEC-02 | Audit dynamic HTML, keyboard focus and contrast across role views; verify rendered responsive pages. | Pending |
-| REL-01 | Medium / reproducibility | TODO | Next milestone | Build a clean ZIP from tested PR head, extract and rerun gates; publish checksum and milestone report. | Pending |
+| REL-01 | Medium / reproducibility | DONE | DATA-02 | Build clean ZIP from tested PR head, extract and rerun full suite/Ruff, verify image hashes and publish checksum. | 130 extracted tests, Ruff, hashes; deliverable in `/Users/mim/Desktop/Preluma/Deliverables/` |
 
 External blockers do not stop independent local work. Do not mark a task `DONE` from a plan or an inherited report alone.
