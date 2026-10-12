@@ -345,30 +345,34 @@ class IndexResult:
     chunks: int
 
 
-def index_document(filename: str, data: bytes, *, uploaded_by: int | None = None,
+def index_document(filename: str, data: bytes, *, uploaded_by: int,
                    course_id: int | None = None, title: str | None = None,
                    visibility: str | None = None) -> IndexResult:
     """Extract, chunk, embed and store an uploaded file.  Raises :class:`DocumentError` on bad files."""
-    text = extract_text(filename, data)
-    safe_name = sanitize_text(Path(filename).name, 160)
-    doc_title = sanitize_text(title or Path(filename).stem, 160) or "Untitled"
-    digest = hashlib.sha256(data).hexdigest()
     selected_visibility = visibility or ("course" if course_id is not None else "public")
     if selected_visibility not in {"public", "course", "private", "staff"}:
         raise ValueError("Unknown document visibility.")
     with session_scope() as s:
-        users, courses, docs = UserRepository(s), CourseRepository(s), KnowledgeDocumentRepository(s)
-        if uploaded_by is not None:
-            actor = users.get(uploaded_by)
-            if actor is None or actor.role not in ("teacher", "admin"):
-                raise PermissionError("Only teachers or administrators may index course documents.")
-            if course_id is not None:
-                course = courses.get(course_id)
-                if course is None:
-                    raise LookupError("Course not found.")
-                if actor.role != "admin" and course.owner_id not in (None, actor.id):
-                    raise PermissionError("You may only manage documents for your own course.")
-        existing = docs.get_by_digest(digest, course_id)
+        users, courses = UserRepository(s), CourseRepository(s)
+        actor = users.get(uploaded_by) if isinstance(uploaded_by, int) else None
+        if actor is None or not actor.is_active or actor.role not in ("teacher", "admin"):
+            raise PermissionError("Only active teachers or administrators may index course documents.")
+        if course_id is not None:
+            course = courses.get(course_id)
+            if course is None:
+                raise LookupError("Course not found.")
+            if actor.role != "admin" and course.owner_id not in (None, actor.id):
+                raise PermissionError("You may only manage documents for your own course.")
+    text = extract_text(filename, data)
+    safe_name = sanitize_text(Path(filename).name, 160)
+    doc_title = sanitize_text(title or Path(filename).stem, 160) or "Untitled"
+    digest = hashlib.sha256(data).hexdigest()
+    with session_scope() as s:
+        docs = KnowledgeDocumentRepository(s)
+        existing = docs.get_by_digest(digest, course_id, uploaded_by, selected_visibility)
+        if existing is not None:
+            existing.title = doc_title
+            existing.source = safe_name
         row = existing or docs.add(
             KnowledgeDocument(
                 title=doc_title,

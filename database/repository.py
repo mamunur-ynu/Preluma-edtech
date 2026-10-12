@@ -456,11 +456,15 @@ class KnowledgeDocumentRepository(_Repo):
     def get(self, doc_id: int) -> KnowledgeDocument | None:
         return self.session.get(KnowledgeDocument, doc_id)
 
-    def get_by_digest(self, digest: str, course_id: int | None) -> KnowledgeDocument | None:
+    def get_by_digest(
+        self, digest: str, course_id: int | None, uploaded_by: int, visibility: str
+    ) -> KnowledgeDocument | None:
         return self.session.scalar(
             select(KnowledgeDocument).where(
                 KnowledgeDocument.content_sha256 == digest,
                 KnowledgeDocument.course_id == course_id,
+                KnowledgeDocument.uploaded_by == uploaded_by,
+                KnowledgeDocument.visibility == visibility,
             )
         )
 

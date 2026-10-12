@@ -100,8 +100,9 @@ class RAGEngine:
         added = 0
         with self._lock:
             for doc in documents:
-                if not self.store.has_document(doc.doc_id):
-                    added += self.index_document(doc, replace=False, save=False)
+                existing = self.store.document_metadata(doc.doc_id)
+                if existing is None or existing.get("visibility") != doc.metadata.get("visibility"):
+                    added += self.index_document(doc, replace=existing is not None, save=False)
             if added:
                 self.store.save()
         return added
@@ -139,7 +140,9 @@ class RAGEngine:
         query_terms = set(tokenize(query))
         rescored = []
         for chunk, vector_score in candidates:
-            visibility = str(chunk.metadata.get("visibility", "public"))
+            # Old uploaded indexes may lack visibility metadata. Deny them until
+            # a trusted owner reindexes the document with an explicit policy.
+            visibility = str(chunk.metadata.get("visibility", ""))
             owner = chunk.metadata.get("uploaded_by")
             course_id = chunk.metadata.get("course_id")
             visible = (

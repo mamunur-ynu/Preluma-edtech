@@ -140,7 +140,7 @@ def pack_to_documents(topics: dict[str, dict]) -> list[SourceDocument]:
                 title=title,
                 text="\n\n".join(p for p in parts if p.strip()),
                 source="Curated topic library",
-                metadata={"topic": key},
+                metadata={"topic": key, "visibility": "public"},
             )
         )
     return documents

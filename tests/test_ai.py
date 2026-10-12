@@ -102,7 +102,8 @@ def test_rag_topic_filter_and_unknown_query(rag):
 
 
 def test_uploaded_documents_are_indexed_and_removable(rag):
-    doc = SourceDocument("doc:1", "Course notes", "The flux capacitor stabilises the quantum banana. " * 5, "notes.txt")
+    doc = SourceDocument("doc:1", "Course notes", "The flux capacitor stabilises the quantum banana. " * 5,
+                         "notes.txt", {"visibility": "public"})
     assert rag.index_document(doc) > 0
     assert rag.retrieve("flux capacitor", k=1)[0].doc_id == "doc:1"
     rag.delete_document("doc:1")
@@ -118,7 +119,8 @@ def test_extractive_answer_cites_sources(rag):
 def test_index_persists_to_disk(tmp_path):
     path = tmp_path / "index.json"
     first = RAGEngine(embedder=HashingEmbedder(), index_path=path, vector_backend="memory")
-    first.index_document(SourceDocument("d", "Doc", "Persistent knowledge about databases and indexes. " * 4, "d.txt"))
+    first.index_document(SourceDocument("d", "Doc", "Persistent knowledge about databases and indexes. " * 4,
+                                        "d.txt", {"visibility": "public"}))
     second = RAGEngine(embedder=HashingEmbedder(), index_path=path, vector_backend="memory")
     assert second.store.count() == first.store.count() > 0
 
@@ -196,4 +198,4 @@ def test_knowledge_base_upload_roundtrip(indexed_service):
     assert ai_service.remove_document(int(result.doc_id.split(":")[1]), teacher.id)
     assert ai_service.list_documents(teacher.id) == []
     with pytest.raises(DocumentError):
-        ai_service.index_document("empty.txt", b"   ")
+        ai_service.index_document("empty.txt", b"   ", uploaded_by=teacher.id)

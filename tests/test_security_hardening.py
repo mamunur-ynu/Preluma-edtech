@@ -5,13 +5,13 @@ from __future__ import annotations
 import pytest
 from datetime import timedelta
 
-from ai.documents import SourceDocument
+from ai.documents import SourceDocument, pack_to_documents
 from ai.embeddings import HashingEmbedder
 from ai.rag_engine import RAGEngine
 from auth import create_user
 from database.connection import session_scope
 from database.models import AIConversationMessage, Course, utcnow
-from database.repository import ConversationRepository, CourseRepository
+from database.repository import ConversationRepository, CourseRepository, KnowledgeDocumentRepository
 from security.rate_limit import InProcessRateLimiter, RateLimitExceeded
 from security.uploads import UploadPolicy, validate_upload
 from services import ai_service, course_service
@@ -66,6 +66,24 @@ def test_rag_filters_private_and_cross_course_documents_before_ranking():
     assert {hit.doc_id for hit in student_two} == {"public", "private"}
 
 
+def test_unlabelled_legacy_chunks_are_hidden_and_curated_topics_remain_public(tmp_path):
+    index_path = tmp_path / "index.json"
+    rag = RAGEngine(embedder=HashingEmbedder(), index_path=index_path)
+    text = "Legacy secret course marker only appears in an unlabelled upload. " * 5
+    rag.index_document(SourceDocument("doc:old", "Legacy upload", text, "old.txt"))
+    assert rag.retrieve("legacy secret course marker", k=5, user_id=1, allowed_course_ids=set()) == []
+
+    curated = pack_to_documents({"statistics": {"title": "Statistics", "definition": "Statistics explains data."}})
+    assert curated[0].metadata["visibility"] == "public"
+    # Simulate a pre-hardening persisted curated chunk without a visibility label.
+    rag.index_document(SourceDocument(curated[0].doc_id, curated[0].title, curated[0].text,
+                                      curated[0].source, {"topic": "statistics"}))
+    loaded = RAGEngine(embedder=HashingEmbedder(), index_path=index_path)
+    assert loaded.index_missing(curated) > 0
+    assert any(hit.doc_id == curated[0].doc_id for hit in loaded.retrieve("statistics data", k=5))
+    assert all(hit.doc_id != "doc:old" for hit in loaded.retrieve("legacy secret course marker", k=5))
+
+
 def test_knowledge_document_management_enforces_role_and_ownership():
     student = create_user("student-sec", PW, "Student Sec")
     teacher_a = create_user("teacher-a", PW, "Teacher A", "teacher")
@@ -73,11 +91,33 @@ def test_knowledge_document_management_enforces_role_and_ownership():
     payload = ("Secure indexing content with enough words. " * 8).encode()
     with pytest.raises(PermissionError):
         ai_service.index_document("notes.txt", payload, uploaded_by=student.id)
+    with pytest.raises(PermissionError):
+        ai_service.index_document("notes.txt", payload, uploaded_by=None)
     result = ai_service.index_document("notes.txt", payload, uploaded_by=teacher_a.id)
     doc_id = int(result.doc_id.split(":")[1])
     with pytest.raises(PermissionError):
         ai_service.remove_document(doc_id, teacher_b.id)
     assert ai_service.remove_document(doc_id, teacher_a.id)
+
+
+def test_equal_upload_bytes_do_not_cross_owner_or_visibility_boundaries():
+    teacher_a = create_user("teacher-duplicate-a", PW, "Teacher A", "teacher")
+    teacher_b = create_user("teacher-duplicate-b", PW, "Teacher B", "teacher")
+    payload = ("Duplicated private lecture marker with useful context. " * 8).encode()
+    public = ai_service.index_document("shared.txt", payload, uploaded_by=teacher_a.id)
+    private = ai_service.index_document("private.txt", payload, uploaded_by=teacher_b.id, visibility="private")
+    again = ai_service.index_document("shared-again.txt", payload, uploaded_by=teacher_a.id)
+    assert public.doc_id != private.doc_id
+    assert again.doc_id == public.doc_id
+    with session_scope() as session:
+        rows = KnowledgeDocumentRepository(session).list_all()
+        assert len(rows) == 2
+        assert {(row.uploaded_by, row.visibility) for row in rows} == {
+            (teacher_a.id, "public"), (teacher_b.id, "private")
+        }
+    hits = ai_service.get_rag().retrieve("duplicated private lecture marker", k=10,
+                                         user_id=teacher_a.id, allowed_course_ids=set())
+    assert {hit.doc_id for hit in hits} == {public.doc_id}
 
 
 def test_teacher_cannot_read_another_teachers_owned_course_analytics():
