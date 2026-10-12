@@ -24,8 +24,9 @@ Supabase table required (run ONCE in Supabase SQL editor):
       created_at    text not null
     );
     alter table preluma_project_files enable row level security;
-    create policy "anon full access" on preluma_project_files
-      for all using (true) with check (true);
+    -- SECURITY: do NOT add a permissive "anon" policy.  With RLS enabled and no policy the
+    -- public anon key can read nothing; the app should use the server-side service-role key
+    -- (kept in Streamlit secrets, never shipped to browsers).  See docs/AUDIT_REPORT.md S6.
 """
 from __future__ import annotations
 
@@ -34,10 +35,12 @@ import csv
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import requests as _requests
+from config import get_setting
 from storage_core import backup_csv, restore_csv
+from services.upload_service import PROJECT_FILE_POLICY
+from security.uploads import validate_upload
 
 DATA_DIR        = Path("data")
 PROJECTS_CSV    = DATA_DIR / "projects.csv"
@@ -64,12 +67,7 @@ def _new_id() -> str:
 
 
 def _get_secret(name: str) -> str:
-    try:
-        import streamlit as st
-        val = st.secrets.get(name, "")
-        return str(val).strip() if val else ""
-    except Exception:
-        return ""
+    return get_setting(name)
 
 
 def _supabase_available() -> bool:
@@ -160,20 +158,19 @@ def _sb_get_files(project_id: str | None = None,
     params: dict[str, str] = {
         "select": "file_id,project_id,uploader,uploader_role,file_name,file_type,notes,created_at"
     }
-    filters = []
+    # One query parameter per column.  Values are URL-encoded by ``requests`` and each filter is a
+    # single PostgREST operand, so user input can never inject extra filter syntax.
     if project_id:
-        filters.append(f"project_id=eq.{project_id}")
+        params["project_id"] = f"eq.{project_id}"
     if uploader:
-        filters.append(f"uploader=eq.{uploader}")
+        params["uploader"] = f"eq.{uploader}"
     if uploader_role:
-        filters.append(f"uploader_role=eq.{uploader_role}")
-    if filters:
-        params["and"] = "(" + ",".join(filters) + ")"
+        params["uploader_role"] = f"eq.{uploader_role}"
     try:
         resp = _requests.get(_sb_files_url(), headers=_sb_headers(), params=params, timeout=10)
         if resp.status_code == 200:
             return resp.json()
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return []
 
@@ -189,7 +186,7 @@ def _sb_get_file_data(file_id: str) -> dict | None:
         if resp.status_code == 200:
             rows = resp.json()
             return rows[0] if rows else None
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return None
 
@@ -358,6 +355,10 @@ def load_all_complete_personal_projects() -> list[dict]:
 # Public API — Files
 # ─────────────────────────────────────────────────────────────────────────────
 
+ALLOWED_EXTENSIONS = {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".txt", ".png", ".jpg", ".jpeg", ".zip"}
+MAX_FILE_BYTES = PROJECT_FILE_POLICY.max_bytes
+
+
 def upload_file(
     project_id: str,
     uploader: str,
@@ -368,6 +369,11 @@ def upload_file(
     notes: str = "",
 ) -> tuple[bool, str]:
     """Upload a file. Returns (success, file_id_or_error)."""
+    try:
+        checked = validate_upload(file_name, file_bytes, PROJECT_FILE_POLICY)
+    except ValueError as exc:
+        return False, str(exc)
+    file_name, file_bytes = checked.filename, checked.data
     file_id  = _new_id()
     b64_data = base64.b64encode(file_bytes).decode()
     row = {
@@ -410,7 +416,7 @@ def download_file(file_id: str) -> tuple[bytes | None, str, str]:
             try:
                 raw = base64.b64decode(rec["file_data"])
                 return raw, rec.get("file_name", "file"), rec.get("file_type", "")
-            except Exception:
+            except Exception:  # nosec B110
                 pass
     raw, fname = _local_get_file_bytes(file_id)
     return raw, fname, ""

@@ -1,4 +1,13 @@
-streamlit>=1.36.0
-plotly>=5.20.0
-requests>=2.31.0
-pytest>=8.0.0
+# Core app
+streamlit>=1.36.0,<2
+plotly>=5.20.0,<7
+requests>=2.31.0,<3
+pandas>=2.0.0,<3
+sqlalchemy>=2.0.0,<3
+alembic>=1.13.0,<2
+psycopg2-binary>=2.9.9,<3      # PostgreSQL deployments
+
+# Optional features (the app degrades gracefully without them)
+pypdf>=4.0.0,<7               # PDF upload to the knowledge base
+# sentence-transformers>=2.7  # semantic embeddings (otherwise a fast offline hashing embedder is used)
+# faiss-cpu>=1.8.0            # FAISS vector index (otherwise an in-memory store is used)

@@ -14,7 +14,7 @@ def test_team_photo_is_packaged():
 
 
 def test_six_provider_ready_architecture():
-    text = Path('llm.py').read_text(encoding='utf-8')
+    text = Path('ai/llm_router.py').read_text(encoding='utf-8')
     for key in [
         'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GEMINI_API_KEY',
         'GROQ_API_KEY', 'OPENROUTER_API_KEY', 'TOGETHER_API_KEY',

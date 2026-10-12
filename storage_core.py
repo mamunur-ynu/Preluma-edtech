@@ -30,10 +30,11 @@ from __future__ import annotations
 
 import csv
 import json
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+from config import get_setting
 
 
 DATA_DIR     = Path("data")
@@ -55,17 +56,9 @@ _SB_DATA_TABLE = "preluma_data_store"
 # ---------------------------------------------------------------------------
 
 def _get_secret(name: str) -> str:
-    """
-    Read a value from Streamlit secrets, falling back to an environment
-    variable if Streamlit is not running (e.g. during tests or local scripts).
-    Returns an empty string when neither source has the value.
-    """
-    try:
-        import streamlit as st
-        val = st.secrets.get(name, "")
-        return str(val).strip() if val else ""
-    except Exception:
-        return str(os.environ.get(name, "")).strip()
+    """Read a setting from the environment (``config.load_streamlit_secrets_into_env`` copies
+    Streamlit secrets there at start-up, so this module never imports Streamlit)."""
+    return get_setting(name)
 
 
 def _sb_available() -> bool:

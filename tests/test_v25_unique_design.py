@@ -1,42 +1,19 @@
-from pathlib import Path
+from components.theme import APP_VERSION, UI_REFINEMENT_CSS
+from components.ui_components import home_feature_card, section_heading, source_note
 
 
-APP = Path("streamlit_app.py").read_text(encoding="utf-8")
+def test_reusable_cards_escape_untrusted_content():
+    payload = '<img src=x onerror="alert(1)">'
+    for rendered in (
+        home_feature_card(1, payload, payload, "cyan"),
+        section_heading(payload, payload, payload),
+        source_note(1, payload, payload),
+    ):
+        assert payload not in rendered
+        assert "&lt;img" in rendered
 
 
-def test_unique_page_themes_exist():
-    for theme in [
-        "theme-ai",
-        "theme-homework",
-        "theme-teacher",
-        "theme-evidence",
-        "theme-defense",
-        "theme-demo",
-        "theme-roadmap",
-    ]:
-        assert theme in APP
-
-
-def test_sidebar_has_no_navigation_emoji():
-    forbidden = ["🎯", "🔔", "✨", "📊", "🏫"]
-    sidebar_start = APP.index("def sidebar():")
-    sidebar_end = APP.index("# ── Hero", sidebar_start)
-    sidebar = APP[sidebar_start:sidebar_end]
-    for item in forbidden:
-        assert item not in sidebar
-
-
-def test_team_photo_is_background_hero():
-    assert "team-photo-hero" in APP
-    assert "background-image:url" in APP
-    assert "background-position: center center" in APP
-
-
-def test_adaptive_ai_paragraph_depth():
-    assert 'depth == "Deep"' in APP
-    assert '"\\n\\n".join(paragraphs)' in APP
-    assert "Adaptive academic tutor" in APP
-
-
-def test_teacher_profiles_are_not_added_yet():
-    assert "Teacher Profile System" not in APP
+def test_theme_exposes_keyboard_and_motion_accessibility_contracts():
+    assert ":focus-visible" in UI_REFINEMENT_CSS
+    assert "prefers-reduced-motion" in UI_REFINEMENT_CSS
+    assert APP_VERSION == "5.1"

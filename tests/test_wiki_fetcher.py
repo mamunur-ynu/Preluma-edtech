@@ -1,4 +1,4 @@
-from wiki_fetcher import extract_keywords, simplify_text, smart_answer_from_pack
+from wiki_fetcher import extract_keywords, smart_answer_from_pack
 
 def test_keyword_extraction():
     words = extract_keywords("Machine learning learns patterns from data and data examples.", limit=3)

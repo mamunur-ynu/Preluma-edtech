@@ -1,5 +1,15 @@
 [theme]
 base = "dark"
+primaryColor = "#38BDF8"
+backgroundColor = "#020817"
+secondaryBackgroundColor = "#0B162A"
+textColor = "#E8F1FB"
+
+[theme.sidebar]
+primaryColor = "#38BDF8"
+backgroundColor = "#020810"
+secondaryBackgroundColor = "#0A1424"
+textColor = "#E2E8F0"
 
 [server]
 headless = true

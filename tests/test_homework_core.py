@@ -13,7 +13,7 @@ def redirect_files(tmp_path: Path) -> None:
 
 def test_homework_end_to_end(tmp_path):
     redirect_files(tmp_path)
-    homework_id = hw.create_homework(
+    homework_id, _number = hw.create_homework(
         title="Test Homework",
         topic="Python",
         instructions="Answer all questions.",

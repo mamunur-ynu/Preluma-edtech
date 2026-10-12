@@ -1,0 +1,23 @@
+[project]
+name = "preluma"
+version = "5.1.0"
+description = "Preluma — AI adaptive learning platform (Streamlit front end, framework-independent back end)"
+requires-python = ">=3.10"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B006", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pages migrated verbatim from the old monolith: cosmetic warnings are cleaned up page by page.
+"views/*.py" = ["F841", "F541", "E701", "E702", "E741"]
+"*_core.py" = ["E701", "E702", "E741"]
+"tests/*.py" = ["E701", "E702"]
+"app.py" = ["E402"]            # st.set_page_config + secrets loading must run before the other imports
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
