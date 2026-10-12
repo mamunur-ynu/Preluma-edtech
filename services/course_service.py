@@ -169,6 +169,17 @@ def list_courses(user_id: int | None = None) -> list[CourseView]:
         return views
 
 
+def list_teacher_courses(actor_id: int) -> list[CourseView]:
+    """Published courses whose class data this teacher (or admin) may inspect."""
+    with session_scope() as s:
+        actor = require_active_user(s, actor_id)
+        if actor.role not in ("teacher", "admin"):
+            raise PermissionError("Only teachers or administrators may view class courses.")
+        allowed = {c.id for c in CourseRepository(s).list_published()
+                   if actor.role == "admin" or c.owner_id in (None, actor.id)}
+    return [course for course in list_courses() if course.id in allowed]
+
+
 def get_course(course_id: int, user_id: int | None = None) -> CourseView | None:
     """One course with its lessons (and per-lesson progress when ``user_id`` is given)."""
     graph = build_graph()

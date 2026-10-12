@@ -13,8 +13,9 @@ from datetime import timedelta
 from core.analytics_engine import completion_rate, readiness_label, score_distribution, topic_difficulty_ranking
 from core.learning_engine import SKILLS_TOPIC, mastery_level
 from database.connection import session_scope
-from database.models import ROLE_STUDENT
+from database.models import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER
 from database.repository import (
+    CourseRepository,
     EnrollmentRepository,
     LessonRepository,
     ProgressRepository,
@@ -23,6 +24,7 @@ from database.repository import (
     UserRepository,
 )
 from services._common import now_utc, title_for
+from services._access import require_active_user
 
 
 @dataclass(frozen=True)
@@ -51,14 +53,26 @@ class ClassOverview:
     student_rows: list[StudentRow] = field(default_factory=list)
 
 
-def class_overview(course_id: int | None = None, days: int = 30) -> ClassOverview:
+def _authorized_courses(session, actor_id: int, course_id: int | None) -> tuple[set[int], bool]:
+    actor = require_active_user(session, actor_id)
+    if actor.role not in (ROLE_TEACHER, ROLE_ADMIN):
+        raise PermissionError("Only teachers or administrators may view class analytics.")
+    allowed = {course.id for course in CourseRepository(session).list_published()
+               if actor.role == ROLE_ADMIN or course.owner_id in (None, actor.id)}
+    if course_id is not None and course_id not in allowed:
+        raise PermissionError("You may only view analytics for an accessible course.")
+    return ({course_id} if course_id is not None else allowed), actor.role == ROLE_ADMIN
+
+
+def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) -> ClassOverview:
     """Aggregate view of the class (or of one course's enrolled students)."""
     now = now_utc()
     with session_scope() as s:
+        allowed_courses, is_admin = _authorized_courses(s, actor_id, course_id)
         users = UserRepository(s)
         roster = [u for u in users.list_by_role(ROLE_STUDENT) if u.is_active]
-        if course_id is not None:
-            enrolled = set(EnrollmentRepository(s).user_ids_for_course(course_id))
+        if not is_admin or course_id is not None:
+            enrolled = {uid for cid in allowed_courses for uid in EnrollmentRepository(s).user_ids_for_course(cid)}
             roster = [u for u in roster if u.id in enrolled]
         ids = {u.id for u in roster}
         overview = ClassOverview(students=len(roster))
@@ -108,14 +122,14 @@ def class_overview(course_id: int | None = None, days: int = 30) -> ClassOvervie
         ]
         overview.top_mistakes = [
             {"topic": title_for(t), "concept": c or "(general)", "count": n}
-            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept()[:8]
+            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept(ids)[:8]
         ]
 
         # completion: share of lessons completed across the roster's enrolled courses
         total_lessons = done_lessons = 0
         for u in roster:
             for cid in EnrollmentRepository(s).course_ids_for_user(u.id):
-                if course_id is not None and cid != course_id:
+                if cid not in allowed_courses:
                     continue
                 lesson_ids = [lesson.id for lesson in LessonRepository(s).list_for_course(cid)]
                 total_lessons += len(lesson_ids)
@@ -124,9 +138,17 @@ def class_overview(course_id: int | None = None, days: int = 30) -> ClassOvervie
         return overview
 
 
-def student_detail(user_id: int) -> dict:
+def student_detail(actor_id: int, user_id: int, course_id: int | None = None) -> dict:
     """Mastery table for one student (teacher drill-down)."""
     with session_scope() as s:
+        allowed_courses, is_admin = _authorized_courses(s, actor_id, course_id)
+        target = UserRepository(s).get(user_id)
+        if target is None or not target.is_active or target.role != ROLE_STUDENT:
+            raise PermissionError("An active student is required.")
+        if not is_admin or course_id is not None:
+            enrolled = set(EnrollmentRepository(s).course_ids_for_user(user_id))
+            if not enrolled.intersection(allowed_courses):
+                raise PermissionError("This student is not enrolled in an accessible course.")
         rows = [r for r in SkillProfileRepository(s).list_for_user(user_id) if r.concept == "" and r.topic != SKILLS_TOPIC]
         return {
             "topics": [

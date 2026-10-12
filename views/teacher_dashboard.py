@@ -6,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from components import charts
-from components.ui_components import card_grid, empty_state, metric_card, page_intro, tone_for
+from components.ui_components import card_grid, current_user_id, empty_state, metric_card, page_intro, tone_for
 from services import analytics_service, course_service
 
 
@@ -14,13 +14,17 @@ def teacher_dashboard_page() -> None:
     page_intro("teacher", "CLASS INSIGHTS", "Teacher Dashboard",
                "See who needs help, which topics are hardest and how the class is progressing.")
 
-    courses = course_service.list_courses()
-    labels = {"All students": None, **{c.title: c.id for c in courses}}
+    actor_id = current_user_id()
+    if actor_id is None:
+        empty_state("Please log in again to view class analytics.")
+        return
+    courses = course_service.list_teacher_courses(actor_id)
+    labels = {"All students": None, **{f"{c.title} (#{c.id})": c.id for c in courses}}
     c1, c2 = st.columns([2, 1])
     choice = c1.selectbox("Course", list(labels), key="td_course")
     days = c2.selectbox("Period", [7, 14, 30, 90], index=2, format_func=lambda d: f"Last {d} days", key="td_days")
 
-    overview = analytics_service.class_overview(labels[choice], days=int(days))
+    overview = analytics_service.class_overview(actor_id, labels[choice], days=int(days))
     if overview.students == 0:
         empty_state("No students yet. Once students register (and enrol), their results appear here.")
         return
@@ -61,7 +65,7 @@ def teacher_dashboard_page() -> None:
     names = {f"{r.name} (@{r.username})": r.user_id for r in overview.student_rows}
     picked = st.selectbox("Drill into a student", ["—"] + list(names), key="td_student")
     if picked != "—":
-        detail = analytics_service.student_detail(names[picked])
+        detail = analytics_service.student_detail(actor_id, names[picked], labels[choice])
         if detail["topics"]:
             st.plotly_chart(charts.mastery_bar([(t["topic"], t["mastery"]) for t in detail["topics"]], picked),
                             use_container_width=True)

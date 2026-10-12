@@ -302,9 +302,12 @@ class QuizAttemptRepository(_Repo):
             select(QuizAttempt).where(QuizAttempt.created_at >= since).order_by(QuizAttempt.created_at)
         ).all()
 
-    def mistake_counts_by_concept(self) -> list[tuple[str, str, int]]:
+    def mistake_counts_by_concept(self, user_ids: set[int]) -> list[tuple[str, str, int]]:
+        if not user_ids:
+            return []
         rows = self.session.execute(
             select(QuizMistake.topic, QuizMistake.concept, func.count())
+            .where(QuizMistake.user_id.in_(user_ids))
             .group_by(QuizMistake.topic, QuizMistake.concept)
             .order_by(func.count().desc())
         ).all()

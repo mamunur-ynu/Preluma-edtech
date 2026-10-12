@@ -25,10 +25,11 @@ def _course_analytics() -> None:
     if actor_id is None:
         empty_state("Please log in again to view class analytics.")
         return
-    courses = course_service.list_courses()
+    courses = course_service.list_teacher_courses(actor_id)
     if courses:
-        picked = st.selectbox("Course", [c.title for c in courses], key="an_course")
-        course = next(c for c in courses if c.title == picked)
+        labels = {f"{c.title} (#{c.id})": c for c in courses}
+        picked = st.selectbox("Course", list(labels), key="an_course")
+        course = labels[picked]
         rows = course_service.course_completion_report(course.id, actor_id)
         if rows:
             st.plotly_chart(charts.completion_gauge(sum(r["percent"] for r in rows) / len(rows), f"{picked}: average completion"),
