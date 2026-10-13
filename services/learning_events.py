@@ -11,7 +11,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from core.learning_engine import QuestionResult
@@ -62,6 +62,13 @@ def append_quiz_event(
 
 def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> list[CourseMastery]:
     """Replay only attributed events for one user/course; latest 3 weighted 3:2:1."""
+    # Serialize concurrent PostgreSQL replays for this exact learner/course pair.
+    # SQLite is used only for single-process local demos and synthetic tests.
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(:user_id, :course_id)"),
+            {"user_id": user_id, "course_id": course_id},
+        )
     events = session.scalars(
         select(LearningEvent).where(
             LearningEvent.user_id == user_id,

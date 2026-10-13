@@ -241,7 +241,7 @@ class LearningEvent(Base):
 
 
 class LearningOutbox(Base):
-    """Transactional delivery marker; no worker or external publish is enabled yet."""
+    """Transactional delivery marker; only opt-in local replay is available."""
 
     __tablename__ = "learning_outbox"
 

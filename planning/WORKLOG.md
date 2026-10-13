@@ -1,5 +1,12 @@
 # Worklog
 
+## 2026-10-13, 21:42 Asia/Shanghai — ADR-013 and opt-in outbox replay
+
+- Aligned ROADMAP/TASK_QUEUE with the approved AI-native modular monolith, event-driven processing and learning-intelligence sequence without discarding completed security/API/Next work. Security, data isolation and isolated PostgreSQL staging remain first-order gates.
+- Added a one-event outbox replay function; it atomically rebuilds an attributed learner/course mastery projection and marks delivery, while errors roll back both. PostgreSQL query paths use `FOR UPDATE SKIP LOCKED` and a transaction-scoped learner/course advisory lock; SQLite remains single-process evidence only. No daemon, Redis, external publish, live database or production data was touched.
+- Added synthetic tests for idempotent retry, ambiguous course exclusion and failed-replay rollback. Focused event/outbox suite: 7 passed. Full Python suite: 171 passed with one upstream Starlette TestClient deprecation warning. Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities. The two original image hashes remain unchanged.
+- Still open: real PostgreSQL multi-worker/locking and outage rehearsal, poison-event quarantine/retry/alerting, correction and deletion lifecycle, secure gateway/browser staging, teacher evaluation and release authorization. Draft PR #2 was not pushed or merged.
+
 ## 2026-10-13, 02:11 Asia/Shanghai — baseline and checkout
 
 - Confirmed draft PR #2 on `feature/preluma-release-hardening` at `b13108a1c1f705ef98d64e755eddec0ca4decfc3`; prior GitHub CI runs were successful.

@@ -6,7 +6,7 @@ The existing `QuizAttempt.course_id`/`lesson_id` remains the evidence source. Gl
 
 Revision `20261013_06` adds `learning_events`, `learning_outbox` and `course_mastery`. The implemented `quiz.completed` event stores a UUID, schema version, user/course/lesson provenance, source attempt, producer/idempotency key, UTC timestamps, and only canonical topic, score, total, percentage and per-concept aggregate counts in JSON. It never stores questions, answers or document text. Concept labels over 80 characters are omitted rather than silently merged. Unique `(producer, idempotency_key)` prevents duplicate evidence. `record_quiz_attempt` appends the event and outbox marker in the source attempt's transaction. Ambiguous attempts have `course_id = NULL` and do not project to any course. No Redis publisher or event-feed API is enabled.
 
-The service has no event update path, but database-level append-only permissions/triggers, compensating corrections, retention/account-deletion policy and outbox delivery are not implemented. Teacher reads must pass existing course ownership/enrollment checks; there is no general event-feed endpoint in API v1.
+The service has no event update path, but database-level append-only permissions/triggers, compensating corrections and retention/account-deletion policy are not implemented. An opt-in local outbox replay function now acknowledges one event and rebuilds its attributed course projection in one transaction; it is not scheduled, has no external publisher and is not production-ready. Teacher reads must pass existing course ownership/enrollment checks; there is no general event-feed endpoint in API v1.
 
 ## Course-specific projection
 
