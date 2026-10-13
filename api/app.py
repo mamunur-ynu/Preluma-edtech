@@ -13,7 +13,8 @@ from typing import Annotated
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 
 from api.contracts import (
-    CourseListResponse, CourseSummary, CurrentUserResponse, LoginRequest, SessionResponse, StatusResponse,
+    CourseListResponse, CourseRecommendationResponse, CourseSummary, CurrentUserResponse,
+    LoginRequest, SessionResponse, StatusResponse,
 )
 from auth.authentication import login
 from auth.sessions import (
@@ -23,6 +24,7 @@ from config import get_setting, get_settings
 from database.connection import session_scope
 from database.repository import UserRepository
 from services.course_service import list_courses
+from services.course_recommendations import get_course_recommendation
 
 app = FastAPI(title="Preluma internal API", version="0.1.0", docs_url=None,
               redoc_url=None, openapi_url=None)
@@ -90,6 +92,24 @@ def current_user(user_id: Annotated[int, Depends(require_user)]) -> CurrentUserR
 @app.get("/v1/me/courses", response_model=CourseListResponse)
 def my_courses(user_id: Annotated[int, Depends(require_user)]) -> CourseListResponse:
     return _courses(user_id)
+
+
+@app.get("/v1/me/courses/{course_id}/recommendation", response_model=CourseRecommendationResponse)
+def my_course_recommendation(
+    course_id: int, user_id: Annotated[int, Depends(require_user)],
+) -> CourseRecommendationResponse:
+    """Expose only this session's enrolled-course shadow recommendation."""
+    try:
+        result = get_course_recommendation(user_id, course_id)
+    except PermissionError as exc:
+        raise HTTPException(403, "Course access denied.") from exc
+    return CourseRecommendationResponse(
+        course_id=result.course_id, lesson_id=result.lesson_id,
+        rule_id=result.rule_id, rule_version=result.rule_version,
+        topic=result.topic, title=result.title, reason=result.reason,
+        score=result.score, attempts=result.attempts,
+        evidence_event_ids=list(result.evidence_event_ids),
+    )
 
 
 @app.post("/v1/auth/login", response_model=SessionResponse, dependencies=[Depends(require_bff)])

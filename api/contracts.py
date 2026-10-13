@@ -37,6 +37,21 @@ class CurrentUserResponse(Contract):
     role: str
 
 
+class CourseRecommendationResponse(Contract):
+    """Read-only shadow decision; not an activated study-plan workflow."""
+
+    course_id: int
+    lesson_id: int | None
+    rule_id: str
+    rule_version: int
+    topic: str | None
+    title: str
+    reason: str
+    score: float | None
+    attempts: int
+    evidence_event_ids: list[str]
+
+
 class LoginRequest(Contract):
     username: str = Field(min_length=1, max_length=32)
     password: str = Field(min_length=1, max_length=512)

@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-13 — API-03 enrolled-course shadow recommendation contract
+
+- Added a versioned, typed, read-only `GET /v1/me/courses/{course_id}/recommendation` endpoint over the existing explainable rule service. It derives the learner from the revocable server session, reuses BFF-key admission, and returns 403 for a course outside the enrolment boundary. No learning mutation or UI activation was added.
+- Two new synthetic API tests cover missing/wrong BFF admission, missing/revoked/deactivated sessions, other-user/course denial, OpenAPI shape, no-store response, method safety and exclusion of raw quiz questions/answers. Focused API/rule suite: 8 passed. Full Python suite: 173 passed with one upstream Starlette TestClient deprecation warning. Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities.
+- Both original image SHA-256 values remain unchanged. Real HTTPS browser/gateway, PostgreSQL RLS/concurrency, teacher rule evaluation and authenticated Next.js view remain open; no production data, deployment, paid provider or GitHub push was involved.
+
 ## 2026-10-13, 21:42 Asia/Shanghai — ADR-013 and opt-in outbox replay
 
 - Aligned ROADMAP/TASK_QUEUE with the approved AI-native modular monolith, event-driven processing and learning-intelligence sequence without discarding completed security/API/Next work. Security, data isolation and isolated PostgreSQL staging remain first-order gates.
