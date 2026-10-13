@@ -216,6 +216,62 @@ class SkillProfile(Base):
     last_practiced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
+class LearningEvent(Base):
+    """Immutable, privacy-minimized evidence; ambiguous attempts have no course."""
+
+    __tablename__ = "learning_events"
+    __table_args__ = (
+        UniqueConstraint("producer", "idempotency_key", name="uq_learning_event_producer_key"),
+        Index("ix_learning_event_course_replay", "user_id", "course_id", "occurred_at", "id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    schema_version: Mapped[int] = mapped_column(Integer, default=1)
+    event_type: Mapped[str] = mapped_column(String(40))
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), nullable=True)
+    lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(40))
+    source_id: Mapped[str] = mapped_column(String(80))
+    producer: Mapped[str] = mapped_column(String(40))
+    idempotency_key: Mapped[str] = mapped_column(String(120))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    payload_json: Mapped[str] = mapped_column(Text)
+
+
+class LearningOutbox(Base):
+    """Transactional delivery marker; no worker or external publish is enabled yet."""
+
+    __tablename__ = "learning_outbox"
+
+    event_id: Mapped[str] = mapped_column(
+        ForeignKey("learning_events.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class CourseMastery(Base):
+    """Rebuildable course-scoped projection, not a replacement for legacy SkillProfile."""
+
+    __tablename__ = "course_mastery"
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", "topic", "concept", name="uq_course_mastery"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id", ondelete="CASCADE"), index=True)
+    topic: Mapped[str] = mapped_column(String(80))
+    concept: Mapped[str] = mapped_column(String(80), default="")
+    mastery: Mapped[float] = mapped_column(Float)
+    attempts: Mapped[int] = mapped_column(Integer)
+    last_event_id: Mapped[str] = mapped_column(String(36))
+    last_practiced_at: Mapped[datetime] = mapped_column(DateTime)
+    projection_version: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class AIConversationMessage(Base):
     __tablename__ = "ai_conversation_history"
     __table_args__ = (Index("ix_conv_user_session", "user_id", "session_id", "id"),)

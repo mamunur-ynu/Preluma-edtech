@@ -223,6 +223,11 @@ def record_quiz_attempt(
             ),
             mistakes,
         )
+        from services.learning_events import append_quiz_event, rebuild_course_mastery
+
+        append_quiz_event(s, attempt)
+        if attempt.course_id is not None:
+            rebuild_course_mastery(s, user_id, attempt.course_id)
 
         profile = _load_profile(s, user_id)
         before = profile.get((key, ""), MasteryState()).mastery

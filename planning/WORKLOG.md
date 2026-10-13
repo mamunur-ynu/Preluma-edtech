@@ -83,3 +83,9 @@
 - Began Next.js/React/TypeScript read-only Home/Courses slice. The exact campus and tower assets were copied byte-for-byte into `web/public`. `npm run typecheck`, `npm run build` and `npm audit --audit-level=high` passed. Local browser desktop/mobile Home/Courses were rendered and inspected against an isolated synthetic SQLite catalog; no real student data was touched.
 - Added owner-priced conservative daily provider-cost reservations to the existing shared counters. Synthetic weighted budget and missing-price tests pass; this is not a billed-cost guarantee or provider-side hard cap.
 - Full Python suite: 156 passed with one upstream FastAPI/Starlette TestClient deprecation warning. Ruff, compileall, Bandit and pip-audit passed. Real PostgreSQL, secure cookies/CSRF, gateway, production deployment and paid calls were not tested/performed.
+
+## 2026-10-13 — INT-01 event/projection slice
+
+- Local previous milestone committed as `fbd8cdc`; it was not pushed. Added revision `20261013_06`, minimal quiz evidence and transactional outbox marker in the existing quiz write transaction, plus deterministic topic-level course mastery replay.
+- Synthetic tests cover multi-course same-topic isolation, ambiguous attempt exclusion, payload privacy, duplicate append, replay of out-of-order event times, transaction rollback and SQLite migration round-trip. Focused 4 tests and full 160-test suite passed; one upstream TestClient deprecation warning. Full Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities.
+- Not complete: concept-level evidence, corrected/superseded events, retention/deletion policy, database-level append-only controls, recommendation activation, outbox worker, real PostgreSQL migration and staging. Streamlit behavior and legacy global mastery remain unchanged. No GitHub push or deployment.

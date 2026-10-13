@@ -1,18 +1,18 @@
-# Learning intelligence contract (ADR-011 design, not yet migrated)
+# Learning intelligence contract (ADR-011 incremental implementation)
 
 The existing `QuizAttempt.course_id`/`lesson_id` remains the evidence source. Global `SkillProfile` remains available to Streamlit while course-specific projections are introduced; no old ambiguous attempt is assigned from today's enrollment.
 
 ## Append-only event record
 
-Proposed `learning_events` fields: `id` (UUID primary key), `schema_version` (positive integer), `event_type` (`quiz_completed`, `lesson_completed`, `recommendation_dismissed` initially), `user_id`, nullable `course_id` and `lesson_id`, `source_type`, `source_id`, `producer`, `idempotency_key`, `occurred_at` (UTC), `recorded_at` (UTC), and minimal versioned `payload_json`. Unique `(producer, idempotency_key)` prevents retries from double-counting. A quiz event stores score, total, canonical topic, duration and aggregate skill/concept results—not raw answers or document contents. `course_id` can be non-null only when a validated explicit course or immutable lesson proves attribution. The event writer must use the same database transaction as the source attempt and a transactional outbox row; publishing to Redis is optional and must not be the sole durable record.
+Revision `20261013_06` adds `learning_events`, `learning_outbox` and `course_mastery`. The implemented `quiz.completed` event stores a UUID, schema version, user/course/lesson provenance, source attempt, producer/idempotency key, UTC timestamps, and only canonical topic, score, total and percentage in JSON. It never stores questions, answers or document text. Unique `(producer, idempotency_key)` prevents duplicate evidence. `record_quiz_attempt` appends the event and outbox marker in the source attempt's transaction. Ambiguous attempts have `course_id = NULL` and do not project to any course. No Redis publisher or event-feed API is enabled.
 
-An event is immutable after commit. Corrections are new compensating events with a reference to the superseded event. User deletion/privacy retention needs a separate reviewed policy before migration. Teacher reads must pass existing course ownership/enrollment checks; there is no general event-feed endpoint in API v1.
+The service has no event update path, but database-level append-only permissions/triggers, compensating corrections, retention/account-deletion policy and outbox delivery are not implemented. Teacher reads must pass existing course ownership/enrollment checks; there is no general event-feed endpoint in API v1.
 
 ## Course-specific projection
 
-Proposed `course_mastery`: unique `(user_id, course_id, topic, concept)`, `score` (0–100), `evidence_count`, `last_event_id`, `last_practiced_at`, `projection_version`, `updated_at`. Only attributed, enrolled-at-event-time evidence for that exact course/topic contributes. Ambiguous or unattributed events update neither course projection nor teacher course charts. Rebuild projections deterministically in `(occurred_at, id)` order, idempotently checkpointing `last_event_id`. Keep existing global mastery separate; never copy it into a course row.
+The implemented topic-level projection has unique `(user_id, course_id, topic, concept)`, mastery (0–100), attempt count, last event/time and projection version. `concept` is currently empty; concept-level evidence is not yet projected. Only quiz events with validated course provenance at recording time are used. The replay orders by `(occurred_at, id)` and replaces only one user's one course's projection, so retries and late evidence yield the same values. Historical enrollment-at-event-time proof is not stored; do not backfill old ambiguous records or claim historical course accuracy. Existing global mastery remains separate.
 
-Initial transparent scoring proposal: latest three valid quiz percentages weighted newest-to-oldest `3:2:1`; clamp to 0–100. One result is marked *provisional* and cannot claim mastery. A course topic is *ready for next lesson* only after at least two attributable attempts and a weighted score of at least 80. The exact threshold/weights require teacher review and evaluation before activation; they are not a proven learning-efficacy claim.
+Implemented score: latest three valid quiz percentages weighted oldest-to-newest `1:2:3` (equivalent to newest-to-oldest `3:2:1`), rounded to one decimal. `attempts` enables callers to treat one result as provisional, but no readiness UI or recommendation activation uses this projection yet. The proposed two-attempt/80 threshold requires teacher review and evaluation; it is not a proven learning-efficacy claim.
 
 ## Explainable recommendation rules
 
