@@ -48,3 +48,4 @@
 - Added an in-process reset-code issuance cap per actor/target that leaves the most recent valid code untouched when blocked. Chat and tutor now draw from one per-user local AI request quota.
 - Added regression tests for both bypasses and wrote a production shared-limiter/provider-budget contract. Focused auth/security suite: 30 passed in 1.34 s. Full suite: 132 passed in 5.84 s. Ruff, compileall, Bandit and pip-audit passed; both preserved image hashes matched.
 - Distributed enforcement and paid-provider budget limits were not implemented or tested; SEC-03 remains in progress. No staging environment, paid provider or production account was touched.
+- GitHub feature-branch commit `8ccf25b` was pushed to existing draft PR #2. A ZIP of that commit passed extraction tests: 132 passed in 5.90 s, Ruff passed, both image hashes matched, archive checksum verified. Rebuild after this documentation-only checkpoint commit so filename and HEAD align.

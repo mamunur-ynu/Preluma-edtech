@@ -25,7 +25,7 @@ Updated: 2026-10-13, Asia/Shanghai. Branch `feature/preluma-release-hardening`, 
 | Bandit (B311 demo randomness excluded) | PASS |
 | pip-audit for runtime and dev requirements | No known vulnerabilities found |
 | Campus/tower SHA-256 | Both match the required values in `AGENTS.md` |
-| Previous clean ZIP extraction | 130 tests passed in 6.87 s, Ruff passed, both image hashes matched; archive CRC valid. Regeneration needed for SEC-03 changes. |
+| Clean ZIP extraction | 132 tests passed in 5.90 s, Ruff passed, both image hashes matched; archive CRC and SHA-256 valid. |
 
 These tests use synthetic SQLite data and offline/mocked AI. Python 3.10, real PostgreSQL, RLS/private object storage, live paid providers, secure gateway and staging/production were NOT RUN. Current release status remains `DEMO_READY`, with production/pilot blockers listed in `planning/RELEASE_GATES.md`.
 
@@ -35,6 +35,6 @@ The uploaded-document source bytes are not retained, so a lost index cannot be r
 
 Login/reset-failure, reset-issuance and AI request counters are still process-local. They do not cap provider failover calls or spending across workers. The production contract is in `docs/RATE_LIMIT_PRODUCTION_CONTRACT.md`; SEC-03 remains open.
 
-Source package and SHA-256 checksum are delivered from `/Users/mim/Desktop/Preluma/Deliverables/`. After a further code change, regenerate and reverify the archive. Draft PR #2 remains unmerged; its checks were pending at the last recorded observation.
+Source package and SHA-256 checksum are delivered from `/Users/mim/Desktop/Preluma/Deliverables/`. Select the ZIP whose short SHA matches current `HEAD`; after any later commit, regenerate and reverify it. Draft PR #2 remains unmerged; check the latest CI run rather than assuming a prior run applies.
 
 No merge to `main`, deployment, production data mutation or paid API call was performed.
