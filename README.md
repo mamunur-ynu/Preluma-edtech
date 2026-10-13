@@ -2,7 +2,7 @@
 
 **Light Up Before Class.** Preluma is a Yunnan University pre-class learning platform built with Python and Streamlit. Students prepare through a five-step Mission, adaptive quizzes, grounded AI tutoring, homework and projects; teachers receive course and class insight; administrators manage accounts and controlled password recovery.
 
-This package is the release-hardening continuation of the refactored v5.1 codebase. Streamlit remains the working UI. The framework-independent `auth/`, `services/`, `core/`, `ai/`, `database/` and `security/` layers are designed to support a later incremental FastAPI/Next.js migration.
+This package is the release-hardening continuation of the refactored v5.1 codebase. Streamlit remains the working UI. ADR-011 establishes an incremental FastAPI/Next.js migration on the same modular Python service layer; the new API and web pages are an early, read-only slice, not a replacement for student/teacher workflows.
 
 ## Preserved identity
 
@@ -73,6 +73,10 @@ streamlit run streamlit_app.py
 
 Open `http://localhost:8501`. With no API keys, the tutor uses the curated offline fallback. The default SQLite database under `data/` is disposable local/demo storage only.
 
+### Experimental read-only web slice
+
+The new `api/` adapter and `web/` Next.js home/catalog run alongside Streamlit. To exercise them locally, use a **synthetic** database and the same random 32+-character `PRELUMA_BFF_SHARED_KEY` on both server processes. Start FastAPI with `python -m uvicorn api.app:app --host 127.0.0.1 --port 8765`, then in `web/` run `npm ci` and `PRELUMA_API_INTERNAL_URL=http://127.0.0.1:8765 npm run dev`. The catalog requires the private API connection; the home page renders without it. Do not place the BFF key in `NEXT_PUBLIC_*`, expose the FastAPI port publicly, or use this slice for login. Run `pytest -q tests/test_api_contract.py` and `cd web && npm run typecheck && npm run build` for its current checks. The intended auth and learning-event contracts are in `docs/WEB_AUTH_BFF_CONTRACT.md` and `docs/LEARNING_INTELLIGENCE_CONTRACT.md`.
+
 Create the first account without putting a password in shell history:
 
 ```bash
@@ -95,6 +99,8 @@ Use environment variables or Streamlit secrets. Never commit `.env` or `.streaml
 | `PRELUMA_LLM_TIMEOUT`, `PRELUMA_LLM_MAX_TOKENS` | Provider timeout/output caps |
 | `PRELUMA_EMBEDDINGS` | `auto`, `hashing`, or optional `sentence-transformers` |
 | `PRELUMA_VECTOR_STORE` | `auto` (database on PostgreSQL), `database`, local `memory`, or optional local `faiss` |
+| `PRELUMA_BFF_SHARED_KEY` | Private FastAPI/Next.js server-to-server key (32+ random characters); never browser-exposed |
+| `PRELUMA_PROVIDER_MAX_USD_PER_DAY`, `PRELUMA_PROVIDER_PRICES_JSON` | Owner-supplied conservative provider-cost admission policy; not an invoice-accurate spending guarantee |
 | `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc. | Optional LLM providers; never required for offline mode |
 | `SUPABASE_URL`, `SUPABASE_KEY` | Legacy compatibility storage only; review RLS before use |
 
@@ -119,7 +125,8 @@ The local `vector_index.json` still contains retrieval passages; keep the entire
 
 Revision `20261013_05` adds a shared relational vector index. PostgreSQL workers use it automatically; they cannot opt into the process-local JSON store. Each search sees committed rows, and document replacement is one transaction. Uploaded chunk text is encrypted with the shared `PRELUMA_DOCUMENT_KEY`; curated public text stays readable. Existing uploaded rows with recoverable encrypted source are reindexed on first startup; legacy rows lacking source need one owner re-upload. Brute-force scoring is intended for classroom-sized corpora, not large-scale retrieval. Real PostgreSQL concurrency, key rotation and query-performance tests remain staging gates.
 
-Revision `20261013_04` adds atomic database-backed rate-limit buckets. SQLite demos default to in-process limits; PostgreSQL requires shared database limits and an explicit `PRELUMA_PROVIDER_CALLS_PER_HOUR` before live provider calls. The latter limits HTTP attempts, not monetary spend. Gateway/IP controls, provider-aware cost budgets and real PostgreSQL concurrency/outage checks remain release gates.
+Revision `20261013_04` adds atomic database-backed rate-limit buckets. SQLite demos default to in-process limits; PostgreSQL requires shared database limits and an explicit `PRELUMA_PROVIDER_CALLS_PER_HOUR` before live provider calls. The latter limits HTTP attempts, not monetary spend. Gateway/IP controls, billed-cost reconciliation and real PostgreSQL concurrency/outage checks remain release gates.
+An additional owner-priced cost reservation now requires `PRELUMA_PROVIDER_MAX_USD_PER_DAY` and exact `PRELUMA_PROVIDER_PRICES_JSON` entries for PostgreSQL live calls. It is an estimate rather than a guarantee of billed cost; account-side hard caps and alerts still need staging validation.
 
 Legacy CSV import is dry-run by default:
 

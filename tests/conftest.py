@@ -22,7 +22,9 @@ def isolated_environment(tmp_path, monkeypatch):
     for name in ("DEMO_USERS_JSON", "PRELUMA_ADMIN_USERS", "PRELUMA_TEACHER_INVITE_CODE", "TEACHER_INVITE_CODE",
                  "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY", "OPENROUTER_API_KEY",
                  "TOGETHER_API_KEY", "SUPABASE_URL", "SUPABASE_KEY", "PRELUMA_DOCUMENT_KEY",
-                 "PRELUMA_RATE_LIMIT_BACKEND", "PRELUMA_PROVIDER_CALLS_PER_HOUR"):
+                 "PRELUMA_RATE_LIMIT_BACKEND", "PRELUMA_PROVIDER_CALLS_PER_HOUR",
+                 "PRELUMA_PROVIDER_MAX_USD_PER_DAY", "PRELUMA_PROVIDER_PRICES_JSON",
+                 "PRELUMA_BFF_SHARED_KEY"):
         monkeypatch.delenv(name, raising=False)
 
     from auth import authentication

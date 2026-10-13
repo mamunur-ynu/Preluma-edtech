@@ -75,3 +75,11 @@
 - Uploaded chunk text is encrypted before storage in the shared index; public curated text stays readable. Two independent engine objects observe each other's uploads, replacements and deletes in synthetic SQLite tests. Missing uploaded chunks can be restored from encrypted source. Full suite: 150 passed in 6.62 s; Ruff and compileall passed.
 - Real PostgreSQL multi-process, outage, migration/backup and representative-corpus performance tests are NOT DONE. DATA-04 stays in progress. No staging database or student data was touched.
 - Commit `371c8ce` was pushed to the existing draft PR. Its two CI test checks passed. The clean Git-archive ZIP passed CRC, checksum, extracted 150-test suite, Ruff, compileall and original image hashes. A delivery report and checksum were saved outside the repository.
+
+## 2026-10-13, 16:23 Asia/Shanghai — ADR-011 and first web/API slice
+
+- Recorded the owner's AI-native modular-monolith decision; updated roadmap and queue without dropping completed security/data work. Added detailed event/mastery/recommendation and secure BFF contracts.
+- Added read-only FastAPI v1 adapter with typed DTOs, private BFF key, current-user session validation, revocation/role refresh and no mutating routes. Three contract tests passed. Streamlit code and journeys were not changed.
+- Began Next.js/React/TypeScript read-only Home/Courses slice. The exact campus and tower assets were copied byte-for-byte into `web/public`. `npm run typecheck`, `npm run build` and `npm audit --audit-level=high` passed. Local browser desktop/mobile Home/Courses were rendered and inspected against an isolated synthetic SQLite catalog; no real student data was touched.
+- Added owner-priced conservative daily provider-cost reservations to the existing shared counters. Synthetic weighted budget and missing-price tests pass; this is not a billed-cost guarantee or provider-side hard cap.
+- Full Python suite: 156 passed with one upstream FastAPI/Starlette TestClient deprecation warning. Ruff, compileall, Bandit and pip-audit passed. Real PostgreSQL, secure cookies/CSRF, gateway, production deployment and paid calls were not tested/performed.

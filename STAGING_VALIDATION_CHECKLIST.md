@@ -26,6 +26,7 @@ Use a staging project containing no production student records. Record operator,
 - `PRELUMA_RATE_LIMIT_BACKEND=database` (mandatory with PostgreSQL)
 - `PRELUMA_VECTOR_STORE=database` (PostgreSQL selects this automatically)
 - `PRELUMA_PROVIDER_CALLS_PER_HOUR` (positive owner-approved ceiling; otherwise live providers stay off)
+- `PRELUMA_PROVIDER_MAX_USD_PER_DAY` and `PRELUMA_PROVIDER_PRICES_JSON` (owner-reviewed exact model prices; reserve estimated cents, then reconcile billed usage and configure provider-side hard limits/alerts)
 - `PRELUMA_DOCUMENT_KEY` (required for PostgreSQL uploads/recovery; back up and rotate under a reviewed procedure)
 - `PRELUMA_CONVERSATION_RETENTION_DAYS`
 - `PRELUMA_LLM_TIMEOUT`
@@ -64,6 +65,7 @@ Never paste values into reports, tickets, logs or screenshots.
 
 - [ ] Provider timeout and failover are observed with mocked/disabled primary provider.
 - [ ] Provider budget/rate errors are safe and do not expose keys.
+- [ ] Validate owner price entries, model fallbacks, shared daily estimated-cost denials, provider-side hard spending limits, invoice reconciliation and alerting with an approved non-production budget.
 - [ ] Cross-course and private-document retrieval returns no passage.
 - [ ] A malicious document containing prompt instructions does not override assistant policy.
 - [ ] Citations quote the retrieved source and missing evidence triggers abstention.

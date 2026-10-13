@@ -66,21 +66,24 @@ class DatabaseRateLimiter:
     def _hash(key: str) -> str:
         return hashlib.sha256(str(key or "anonymous").encode()).hexdigest()
 
-    def check(self, key: str) -> None:
+    def check(self, key: str, units: int = 1) -> None:
+        if units < 1:
+            raise ValueError("Quota units must be positive.")
         now = int(time.time())
         with session_scope() as session:
             count = session.execute(
                 text(
                     "INSERT INTO rate_limit_buckets (key_hash, window_start, count) "
-                    "VALUES (:key_hash, :now, 1) "
+                    "VALUES (:key_hash, :now, :units) "
                     "ON CONFLICT (key_hash) DO UPDATE SET "
                     "count = CASE WHEN rate_limit_buckets.window_start <= :cutoff "
-                    "THEN 1 ELSE rate_limit_buckets.count + 1 END, "
+                    "THEN :units ELSE rate_limit_buckets.count + :units END, "
                     "window_start = CASE WHEN rate_limit_buckets.window_start <= :cutoff "
                     "THEN :now ELSE rate_limit_buckets.window_start END "
                     "RETURNING count"
                 ),
-                {"key_hash": self._hash(key), "now": now, "cutoff": now - self.window_seconds},
+                {"key_hash": self._hash(key), "now": now, "cutoff": now - self.window_seconds,
+                 "units": units},
             ).scalar_one()
             session.execute(
                 text("DELETE FROM rate_limit_buckets WHERE window_start <= :expired"),

@@ -1,5 +1,6 @@
 """Shared quota contracts using independent workers on synthetic SQLite files."""
 
+import json
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -57,6 +58,16 @@ def test_concurrent_workers_cannot_oversubscribe(tmp_path, monkeypatch):
     assert sum(outcomes) == limit
 
 
+def test_weighted_shared_counter_retains_denials(tmp_path, monkeypatch):
+    _shared_db(tmp_path, monkeypatch)
+    first, second = DatabaseRateLimiter(5, 86400), DatabaseRateLimiter(5, 86400)
+    first.check("cost:all", units=3)
+    second.check("cost:all", units=2)
+    with pytest.raises(RateLimitExceeded):
+        first.check("cost:all", units=1)
+    assert second.count("cost:all") == 6
+
+
 def test_login_reset_and_ai_use_shared_database_counters(tmp_path, monkeypatch):
     _shared_db(tmp_path, monkeypatch)
     monkeypatch.setenv("PRELUMA_AI_REQUESTS_PER_MINUTE", "1")
@@ -105,3 +116,38 @@ def test_postgres_without_approved_provider_budget_makes_no_call(monkeypatch):
     router = LLMRouter(PROVIDERS[:1], transport=lambda *args: called.append(args))
     assert not router.complete("system", "question").ok
     assert called == []
+
+
+def test_owner_priced_daily_budget_denies_second_estimated_call(tmp_path, monkeypatch):
+    _shared_db(tmp_path, monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "synthetic-key")
+    monkeypatch.setenv("PRELUMA_PROVIDER_CALLS_PER_HOUR", "10")
+    monkeypatch.setenv("PRELUMA_PROVIDER_MAX_USD_PER_DAY", "0.05")
+    monkeypatch.setenv("PRELUMA_PROVIDER_PRICES_JSON", json.dumps({
+        "groq:llama-3.3-70b-versatile": {"input_usd_per_million": "10", "output_usd_per_million": "10"}
+    }))
+    calls = []
+
+    def transport(*_):
+        calls.append(1)
+        return {"choices": [{"message": {"content": "offline synthetic"}}]}
+
+    first = LLMRouter(PROVIDERS[:1], transport=transport, max_tokens=10)
+    second = LLMRouter(PROVIDERS[:1], transport=transport, max_tokens=10)
+    assert first.complete("system", "question").ok
+    assert not second.complete("system", "question").ok
+    assert "cost budget" in second.last_error.lower()
+    assert len(calls) == 1
+
+
+def test_missing_model_price_fails_closed_before_transport(tmp_path, monkeypatch):
+    _shared_db(tmp_path, monkeypatch)
+    monkeypatch.setenv("GROQ_API_KEY", "synthetic-key")
+    monkeypatch.setenv("PRELUMA_PROVIDER_CALLS_PER_HOUR", "10")
+    monkeypatch.setenv("PRELUMA_PROVIDER_MAX_USD_PER_DAY", "1")
+    monkeypatch.setenv("PRELUMA_PROVIDER_PRICES_JSON", "{}")
+    calls = []
+    router = LLMRouter(PROVIDERS[:1], transport=lambda *args: calls.append(args))
+    assert not router.complete("system", "question").ok
+    assert "policy" in router.last_error.lower()
+    assert calls == []

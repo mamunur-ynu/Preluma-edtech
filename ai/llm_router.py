@@ -25,6 +25,7 @@ from typing import Any, Callable, Mapping, Sequence
 import requests
 
 from config import get_setting, get_settings
+from security.provider_budget import reserve_provider_cost
 from security.rate_limit import DatabaseRateLimiter, InProcessRateLimiter, RateLimitExceeded, shared_limits_enabled
 
 logger = logging.getLogger("preluma.llm")
@@ -112,8 +113,9 @@ class LLMRouter:
         self.last_provider = ""
         self._local_call_budget: tuple[int, InProcessRateLimiter] | None = None
 
-    def _transport_with_budget(self, url: str, headers: dict, body: dict, timeout: int) -> dict:
-        """Reserve one call before every HTTP attempt, including model fallbacks."""
+    def _transport_with_budget(self, url: str, headers: dict, body: dict, timeout: int,
+                               provider: str, model: str) -> dict:
+        """Reserve a call and a conservative cost estimate before each HTTP attempt."""
         raw = get_setting("PRELUMA_PROVIDER_CALLS_PER_HOUR")
         if not raw and not get_settings().is_sqlite:
             raise RateLimitExceeded("Live provider call budget is not configured.")
@@ -134,6 +136,7 @@ class LLMRouter:
             raise RateLimitExceeded("Live provider call budget exhausted.") from exc
         except Exception as exc:
             raise RateLimitExceeded("Live provider call budget is unavailable.") from exc
+        reserve_provider_cost(provider, model, body, self.max_tokens)
         return self.transport(url, headers, body, timeout)
 
     # ── introspection ────────────────────────────────────────────────────────
@@ -177,6 +180,7 @@ class LLMRouter:
     # ── provider calls ───────────────────────────────────────────────────────
     def _call(self, spec: ProviderSpec, system: str, user: str, history: Sequence[Message]) -> str:
         key = spec.api_key()
+        model = spec.model()
         messages = [{"role": m["role"], "content": m["content"]} for m in history] + [
             {"role": "user", "content": user}
         ]
@@ -184,8 +188,8 @@ class LLMRouter:
             payload = self._transport_with_budget(
                 spec.url,
                 {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
-                {"model": spec.model(), "max_tokens": self.max_tokens, "system": system, "messages": messages},
-                self.timeout,
+                {"model": model, "max_tokens": self.max_tokens, "system": system, "messages": messages},
+                self.timeout, spec.name, model,
             )
             for block in payload.get("content", []):
                 if block.get("type") == "text":
@@ -197,11 +201,11 @@ class LLMRouter:
             spec.url,
             {"Authorization": f"Bearer {key}", "Content-Type": "application/json", **spec.extra_headers},
             {
-                "model": spec.model(),
+                "model": model,
                 "max_tokens": self.max_tokens,
                 "messages": [{"role": "system", "content": system}, *messages],
             },
-            self.timeout,
+            self.timeout, spec.name, model,
         )
         return str(payload["choices"][0]["message"]["content"]).strip()
 
@@ -222,7 +226,7 @@ class LLMRouter:
                         "contents": contents,
                         "generationConfig": {"maxOutputTokens": self.max_tokens, "temperature": 0.5},
                     },
-                    self.timeout,
+                    self.timeout, spec.name, model,
                 )
                 text = str(payload["candidates"][0]["content"]["parts"][0]["text"]).strip()
                 if text:
