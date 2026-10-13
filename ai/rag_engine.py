@@ -29,7 +29,7 @@ from typing import Iterable
 
 from ai.documents import SourceDocument, chunk_text
 from ai.embeddings import Embedder, get_embedder, tokenize
-from ai.vector_store import Chunk, InMemoryVectorStore, create_vector_store
+from ai.vector_store import Chunk, VectorStore, create_vector_store
 
 logger = logging.getLogger("preluma.rag")
 
@@ -56,7 +56,7 @@ class RAGEngine:
     def __init__(
         self,
         embedder: Embedder | None = None,
-        store: InMemoryVectorStore | None = None,
+        store: VectorStore | None = None,
         *,
         index_path: Path | None = None,
         embedder_preference: str = "auto",
@@ -88,9 +88,12 @@ class RAGEngine:
         ]
         vectors = self.embedder.embed([c.text for c in chunks])
         with self._lock:
-            if replace:
-                self.store.delete_document(doc.doc_id)
-            self.store.add(chunks, vectors)
+            if replace and hasattr(self.store, "replace_document"):
+                self.store.replace_document(doc.doc_id, chunks, vectors)
+            else:
+                if replace:
+                    self.store.delete_document(doc.doc_id)
+                self.store.add(chunks, vectors)
             if save:
                 self.store.save()
         return len(chunks)

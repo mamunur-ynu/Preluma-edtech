@@ -276,6 +276,22 @@ class KnowledgeDocument(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
 
+class VectorChunk(Base):
+    """Shared retrieval index; each search reads committed rows, not a worker cache."""
+
+    __tablename__ = "vector_chunks"
+    __table_args__ = (Index("ix_vector_chunks_doc_embedder", "doc_id", "embedder"),)
+
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    doc_id: Mapped[str] = mapped_column(String(120), index=True)
+    embedder: Mapped[str] = mapped_column(String(120))
+    dim: Mapped[int] = mapped_column(Integer)
+    text: Mapped[str] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String(255), default="")
+    metadata_json: Mapped[str] = mapped_column(Text, default="{}")
+    vector_json: Mapped[str] = mapped_column(Text)
+
+
 class HomeworkAssignment(Base):
     """Relational target for the legacy homework assignment CSV."""
 

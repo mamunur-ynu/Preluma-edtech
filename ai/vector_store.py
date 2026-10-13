@@ -5,10 +5,10 @@ ai/vector_store.py — storage and nearest-neighbour search for embedded text ch
   perfectly adequate for thousands of chunks (a course's lecture notes).
 * :class:`FaissVectorStore` — same interface backed by FAISS (``pip install faiss-cpu``) for
   large collections.  Optional; chosen automatically when available and the corpus is big.
+* :class:`DatabaseVectorStore` — committed relational chunks shared by PostgreSQL workers.
 
-Both keep chunk metadata beside the vectors and remember which embedder produced them: if the
-embedder changes (hashing → sentence-transformers) the stored index is discarded and rebuilt,
-because vectors from different models are not comparable.
+Stores keep chunk metadata beside the vectors and remember which embedder produced them. A
+different embedder is never searched against old vectors, because those spaces are incomparable.
 """
 
 from __future__ import annotations
@@ -20,6 +20,12 @@ import tempfile
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Protocol, Sequence
+
+from sqlalchemy import delete, select, text
+
+from database.connection import session_scope
+from database.models import VectorChunk
+from security.document_crypto import decrypt_source, encrypt_source
 
 logger = logging.getLogger("preluma.vectorstore")
 
@@ -40,6 +46,7 @@ class VectorStore(Protocol):
     def has_document(self, doc_id: str) -> bool: ...
     def document_metadata(self, doc_id: str) -> dict | None: ...
     def count(self) -> int: ...
+    def documents(self) -> dict[str, int]: ...
     def save(self) -> None: ...
 
 
@@ -192,11 +199,126 @@ class FaissVectorStore(InMemoryVectorStore):
         return results[:k]
 
 
+class DatabaseVectorStore:
+    """Committed database rows form the index seen by every worker.
+
+    Brute-force scoring is intentional for modest class corpora. No process cache
+    or local JSON is involved; a later pgvector adapter can replace this store.
+    """
+
+    def __init__(self, embedder_name: str, dim: int) -> None:
+        self.embedder_name = embedder_name
+        self.dim = dim
+
+    def _rows(self) -> list[VectorChunk]:
+        with session_scope() as session:
+            rows = session.scalars(select(VectorChunk).where(
+                VectorChunk.embedder == self.embedder_name, VectorChunk.dim == self.dim
+            )).all()
+            session.expunge_all()
+        return rows
+
+    @staticmethod
+    def _record(chunk: Chunk, vector: Sequence[float], embedder: str, dim: int) -> VectorChunk:
+        if len(vector) != dim:
+            raise ValueError("Vector dimensions do not match the embedder.")
+        digest = chunk.metadata.get("content_sha256")
+        if chunk.doc_id.startswith("doc:") and not digest:
+            raise ValueError("Uploaded database chunks require a source digest.")
+        stored_text = "fernet:" + encrypt_source(chunk.text, digest).decode() if digest else chunk.text
+        return VectorChunk(
+            id=chunk.id, doc_id=chunk.doc_id, embedder=embedder, dim=dim,
+            text=stored_text, source=chunk.source,
+            metadata_json=json.dumps(chunk.metadata), vector_json=json.dumps(list(vector)),
+        )
+
+    def _write(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]],
+               replacing: str | None = None) -> None:
+        if len(chunks) != len(vectors):
+            raise ValueError("chunks and vectors must have the same length")
+        if replacing is not None and any(chunk.doc_id != replacing for chunk in chunks):
+            raise ValueError("Replacement chunks must belong to the same document.")
+        records = [self._record(c, v, self.embedder_name, self.dim) for c, v in zip(chunks, vectors)]
+        with session_scope() as session:
+            if replacing is not None and session.bind.dialect.name == "postgresql":
+                session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:doc_id))"), {"doc_id": replacing})
+            if replacing is not None:
+                session.execute(delete(VectorChunk).where(VectorChunk.doc_id == replacing))
+            for record in records:
+                session.execute(text(
+                    "INSERT INTO vector_chunks (id, doc_id, embedder, dim, text, source, metadata_json, vector_json) "
+                    "VALUES (:id, :doc_id, :embedder, :dim, :text, :source, :metadata_json, :vector_json) "
+                    "ON CONFLICT (id) DO UPDATE SET doc_id = excluded.doc_id, embedder = excluded.embedder, "
+                    "dim = excluded.dim, text = excluded.text, source = excluded.source, "
+                    "metadata_json = excluded.metadata_json, vector_json = excluded.vector_json"
+                ), {key: getattr(record, key) for key in (
+                    "id", "doc_id", "embedder", "dim", "text", "source", "metadata_json", "vector_json"
+                )})
+
+    def add(self, chunks: Sequence[Chunk], vectors: Sequence[Sequence[float]]) -> None:
+        self._write(chunks, vectors)
+
+    def replace_document(self, doc_id: str, chunks: Sequence[Chunk],
+                         vectors: Sequence[Sequence[float]]) -> None:
+        self._write(chunks, vectors, replacing=doc_id)
+
+    def delete_document(self, doc_id: str) -> int:
+        with session_scope() as session:
+            if session.bind.dialect.name == "postgresql":
+                session.execute(text("SELECT pg_advisory_xact_lock(hashtext(:doc_id))"), {"doc_id": doc_id})
+            result = session.execute(delete(VectorChunk).where(VectorChunk.doc_id == doc_id))
+            return result.rowcount or 0
+
+    def search(self, vector: Sequence[float], k: int = 4,
+               topic: str | None = None) -> list[tuple[Chunk, float]]:
+        if len(vector) != self.dim:
+            raise ValueError("Query dimensions do not match the embedder.")
+        scored = []
+        for row in self._rows():
+            metadata = json.loads(row.metadata_json)
+            if topic and metadata.get("topic") != topic:
+                continue
+            if row.doc_id.startswith("doc:") and not row.text.startswith("fernet:"):
+                continue  # deny legacy/plaintext uploaded chunks in the shared store
+            chunk_text = (decrypt_source(row.text.removeprefix("fernet:").encode(),
+                                         metadata["content_sha256"])
+                          if row.text.startswith("fernet:") else row.text)
+            chunk = Chunk(row.id, row.doc_id, chunk_text, row.source, metadata)
+            scored.append((chunk, _dot(vector, json.loads(row.vector_json))))
+        scored.sort(key=lambda item: item[1], reverse=True)
+        return scored[:k]
+
+    def has_document(self, doc_id: str) -> bool:
+        return self.document_metadata(doc_id) is not None
+
+    def document_metadata(self, doc_id: str) -> dict | None:
+        with session_scope() as session:
+            row = session.scalars(select(VectorChunk).where(
+                VectorChunk.doc_id == doc_id, VectorChunk.embedder == self.embedder_name,
+                VectorChunk.dim == self.dim
+            ).limit(1)).first()
+            return json.loads(row.metadata_json) if row else None
+
+    def count(self) -> int:
+        return sum(self.documents().values())
+
+    def documents(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for row in self._rows():
+            counts[row.doc_id] = counts.get(row.doc_id, 0) + 1
+        return counts
+
+    def save(self) -> None:
+        """Each mutation is already committed transactionally."""
+
+
 def create_vector_store(
     backend: str, path: Path | None, embedder_name: str, dim: int, expected_size: int = 0
-) -> InMemoryVectorStore:
-    """``backend``: ``memory`` | ``faiss`` | ``auto`` (FAISS only for large collections)."""
+) -> VectorStore:
+    """``backend``: ``database`` | ``memory`` | ``faiss`` | ``auto``."""
     backend = (backend or "auto").lower()
+    if backend == "database":
+        return DatabaseVectorStore(embedder_name, dim)
     if backend == "faiss" or (backend == "auto" and expected_size > 20_000):
         try:
             return FaissVectorStore(path, embedder_name, dim)

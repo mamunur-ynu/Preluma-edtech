@@ -8,6 +8,7 @@
 - Alembic revision `20261013_02_course_provenance.py` adds nullable quiz course provenance and backfills only attempts with an explicit lesson ID. Other historical attempts remain unattributed; current enrollment is not a valid historical substitute.
 - Alembic revision `20261013_03_encrypted_document_source.py` adds nullable encrypted source bytes to knowledge-document metadata. Old rows remain null until re-upload; no plaintext source is manufactured or inferred.
 - Alembic revision `20261013_04_shared_rate_limits.py` creates shared atomic quota buckets and an expiry index; no student content is stored in these counters.
+- Alembic revision `20261013_05_shared_vector_chunks.py` creates the shared retrieval index. It does not fabricate missing legacy chunks; recoverable encrypted sources are reindexed at startup, and unrecoverable legacy rows need an owner re-upload. PostgreSQL workers require the same recovery key.
 - `scripts/import_legacy_data.py`: dry-run by default, explicit apply, mandatory apply backup directory, source checksums, stable legacy IDs, duplicate detection, transactional writes and quarantine reporting.
 - Compatibility services keep the working legacy UI intact until migration evidence is approved.
 

@@ -68,3 +68,9 @@
 - Added `rate_limit_buckets` and Alembic revision `20261013_04`. One atomic UPSERT/RETURNING check shares a fixed-window quota across independent database workers and retains denied attempts. Old buckets are pruned. PostgreSQL refuses process-local fallback.
 - Login/reset/AI counters use the shared backend when configured; each provider HTTP attempt consumes a global hourly quota. Without an explicit PostgreSQL provider-call ceiling, live calls fail closed. Synthetic concurrent workers, auth/reset/AI and provider-call tests passed. Full suite: 146 passed in 6.71 s; Ruff, compileall, Bandit and pip-audit passed; both image hashes matched.
 - Remaining SEC-03 work: real PostgreSQL multi-worker/outage test, trusted gateway IP quota, provider/model token-price-aware monetary cap and owner alerting. No real provider call or staging deployment was performed.
+
+## 2026-10-13, 16:10 Asia/Shanghai — DATA-04 shared index implementation (partial)
+
+- Added Alembic revision `20261013_05` and a relational vector store. PostgreSQL workers automatically select it; local SQLite demos retain their JSON index unless configured otherwise. Retrieval reads committed database rows each time, and a replacement is one transaction with a PostgreSQL document advisory lock.
+- Uploaded chunk text is encrypted before storage in the shared index; public curated text stays readable. Two independent engine objects observe each other's uploads, replacements and deletes in synthetic SQLite tests. Missing uploaded chunks can be restored from encrypted source. Full suite: 150 passed in 6.62 s; Ruff and compileall passed.
+- Real PostgreSQL multi-process, outage, migration/backup and representative-corpus performance tests are NOT DONE. DATA-04 stays in progress. No staging database or student data was touched.

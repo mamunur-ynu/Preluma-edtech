@@ -1,8 +1,7 @@
-"""Small in-process rate limiter for single-process demo deployments.
+"""Local demo limiter and atomic shared database counters.
 
-Production deployments with multiple workers must put equivalent limits at the
-reverse proxy or a shared Redis-backed gateway. This helper still prevents one
-browser session from accidentally flooding expensive AI providers locally.
+The shared limiter coordinates app-level subjects across workers. A trusted
+gateway is still required for client-IP quotas and secure browser transport.
 """
 
 from __future__ import annotations

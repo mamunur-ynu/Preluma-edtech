@@ -46,7 +46,7 @@ The two required images are regression-tested byte-for-byte and embedded from mo
 - Admin/reset services accept a validated numeric actor identity rather than a caller-supplied actor username.
 - Uploads have central extension, byte-limit, basename and file-signature validation; private local uploads use atomic content-addressed writes.
 - Project uploads are capped at 25 MB. Knowledge documents and profile images have narrower policies.
-- AI requests have an in-process per-user sliding-window limit. A reverse proxy/shared limiter is still required for multi-worker production.
+- SQLite demos use in-process AI limits; PostgreSQL uses shared database counters. A trusted gateway must still enforce IP-level quotas.
 - RAG filters visibility before returning passages. Public, private, staff and course scopes are enforced; knowledge-document deletion is owner/admin restricted.
 - Retrieved course documents are treated as untrusted prompt data. Prompt-like instructions in documents must be ignored, and citations must correspond to retrieved sources.
 - Conversation history is user-scoped, revocable and purged after the configured retention period (30 days by default).
@@ -90,11 +90,11 @@ Use environment variables or Streamlit secrets. Never commit `.env` or `.streaml
 | `PRELUMA_TEACHER_INVITE_CODE` | Optional teacher invite; unset disables teacher self-registration |
 | `PRELUMA_SESSION_TTL_HOURS` | Server-side session lifetime |
 | `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION` | Demo-only opt-in to the localStorage/query restore bridge; default `false` |
-| `PRELUMA_AI_REQUESTS_PER_MINUTE` | Single-process AI request budget; default `12` |
+| `PRELUMA_AI_REQUESTS_PER_MINUTE` | Per-user AI request budget; default `12` |
 | `PRELUMA_CONVERSATION_RETENTION_DAYS` | Tutor conversation retention; default `30` |
 | `PRELUMA_LLM_TIMEOUT`, `PRELUMA_LLM_MAX_TOKENS` | Provider timeout/output caps |
 | `PRELUMA_EMBEDDINGS` | `auto`, `hashing`, or optional `sentence-transformers` |
-| `PRELUMA_VECTOR_STORE` | `auto`, `memory`, or optional `faiss` |
+| `PRELUMA_VECTOR_STORE` | `auto` (database on PostgreSQL), `database`, local `memory`, or optional local `faiss` |
 | `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc. | Optional LLM providers; never required for offline mode |
 | `SUPABASE_URL`, `SUPABASE_KEY` | Legacy compatibility storage only; review RLS before use |
 
@@ -116,6 +116,8 @@ Revision `20261013_02` records the course/lesson for future quizzes. Older attem
 
 Revision `20261013_03` retains encrypted extracted text for document-index recovery. PostgreSQL deployments must supply the same owner-managed `PRELUMA_DOCUMENT_KEY` to every worker; upload fails closed if it is absent. SQLite demos create a private key in `data/document_recovery.key`. Back up the key with the database: losing it makes encrypted sources unrecoverable. Existing uploads predating this revision need an owner re-upload before automatic recovery is possible.
 The local `vector_index.json` still contains retrieval passages; keep the entire data directory on private, access-controlled storage. Encrypted recovery source does not make that process-local index a multi-worker or production-safe store.
+
+Revision `20261013_05` adds a shared relational vector index. PostgreSQL workers use it automatically; they cannot opt into the process-local JSON store. Each search sees committed rows, and document replacement is one transaction. Uploaded chunk text is encrypted with the shared `PRELUMA_DOCUMENT_KEY`; curated public text stays readable. Existing uploaded rows with recoverable encrypted source are reindexed on first startup; legacy rows lacking source need one owner re-upload. Brute-force scoring is intended for classroom-sized corpora, not large-scale retrieval. Real PostgreSQL concurrency, key rotation and query-performance tests remain staging gates.
 
 Revision `20261013_04` adds atomic database-backed rate-limit buckets. SQLite demos default to in-process limits; PostgreSQL requires shared database limits and an explicit `PRELUMA_PROVIDER_CALLS_PER_HOUR` before live provider calls. The latter limits HTTP attempts, not monetary spend. Gateway/IP controls, provider-aware cost budgets and real PostgreSQL concurrency/outage checks remain release gates.
 

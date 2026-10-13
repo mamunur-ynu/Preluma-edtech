@@ -91,10 +91,15 @@ def get_rag() -> RAGEngine:
     with _rag_lock:
         if _rag is None:
             settings = get_settings()
+            backend = settings.vector_backend
+            if not settings.is_sqlite:
+                if backend not in {"auto", "database"}:
+                    raise RuntimeError("PostgreSQL workers require PRELUMA_VECTOR_STORE=database.")
+                backend = "database"
             engine = RAGEngine(
-                index_path=Path(settings.data_dir) / "vector_index.json",
+                index_path=None if backend == "database" else Path(settings.data_dir) / "vector_index.json",
                 embedder_preference=settings.embedding_backend,
-                vector_backend=settings.vector_backend,
+                vector_backend=backend,
             )
             engine.index_missing(pack_to_documents(TOPICS))
             reconcile_document_index(engine)
