@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-14 — WEB-02 local browser sign-in and rendered layout
+
+- Added an accessible, same-origin sign-in form and CSRF-backed sign-out control to the read-only Next.js `/my-learning` preview. The BFF keeps the session in an HttpOnly cookie; the client receives no raw session token. The private course preview remains server-rendered, and no Streamlit learning workflow changed.
+- Inspected rendered Home and My learning pages in the local in-app browser at 1440px and 390px viewports. The exact campus/tower images were visibly present, their local routes returned HTTP 200 `image/jpeg`, and document width equaled viewport width at both sizes. With a disposable synthetic SQLite learner, browser sign-in displayed the enrolled course and sign-out returned to the sign-in form. An initial sign-out left browser-restored credential fields populated; controlled form state fixed this and a repeated browser run showed both fields blank. This validates local development-loopback behavior only, not HTTPS/gateway staging.
+- The BFF synthetic HTTP smoke passed after updating anonymous/revoked-page assertions. Full Python suite: 180 passed with one upstream TestClient deprecation warning; Ruff and compileall passed. Next typecheck and production build passed; npm audit found zero vulnerabilities and pip-audit found no known vulnerabilities. Bandit high-severity gate (`-lll`) passed; unrestricted Bandit still reports 15 existing low-severity `B311` pseudorandom quiz/demo findings, with no medium/high findings. ZIP extraction evidence follows the local commit. No production data, public deployment, paid provider or GitHub push.
+
 ## 2026-10-14 — synthetic learning/account deletion audit
 
 - Added two isolated SQLite regression tests using disposable synthetic accounts only. Direct deletion of an otherwise unreferenced learner cascaded quiz attempt, learning event, outbox and mastery rows while retaining the independent course. A teacher with an uploaded private document could not be deleted because the uploader foreign key blocked it; the transaction rolled back and the document/account remained. Focused suite: 2 passed; no application delete endpoint was introduced.

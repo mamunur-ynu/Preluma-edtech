@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getMyLearning } from "@/lib/api";
 import { SESSION_COOKIE } from "@/lib/auth-bff";
+import { SignInForm, SignOutButton } from "./session-controls";
 
 export const metadata: Metadata = { title: "My learning | Preluma" };
 export const dynamic = "force-dynamic";
@@ -27,10 +28,13 @@ export default async function MyLearningPage() {
       {unavailable ? (
         <p className="notice" role="status">Your learning preview is temporarily unavailable.</p>
       ) : !learning ? (
-        <p className="notice" role="status">An active session is required to view your learning.</p>
+        <SignInForm />
       ) : (
         <>
-          <p className="profile-line">Welcome, {learning.user.full_name}.</p>
+          <div className="session-heading">
+            <p className="profile-line">Welcome, {learning.user.full_name}.</p>
+            <SignOutButton />
+          </div>
           {learning.courses.filter((course) => course.enrolled).length === 0 ? (
             <p className="notice">You are not enrolled in a course yet.</p>
           ) : (

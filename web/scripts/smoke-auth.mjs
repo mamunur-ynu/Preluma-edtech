@@ -32,14 +32,15 @@ assert.ok(cookie.length > "__Host-preluma_session=".length);
 
 const anonymousLearning = await fetch(new URL("/my-learning", base));
 assert.equal(anonymousLearning.status, 200);
-assert.match(await anonymousLearning.text(), /An active session is required/);
+assert.match(await anonymousLearning.text(), /Sign in to continue/);
 const privateLearning = await fetch(new URL("/my-learning", base), { headers: { Cookie: cookie } });
 assert.equal(privateLearning.status, 200);
 const privateHtml = await privateLearning.text();
 assert.match(privateHtml, /My learning/);
 assert.match(privateHtml, /Your pre-class workspace|YOUR PRE-CLASS WORKSPACE/i);
 assert.match(privateHtml, /Welcome,/);
-assert.doesNotMatch(privateHtml, /An active session is required/);
+assert.match(privateHtml, /Sign out/);
+assert.doesNotMatch(privateHtml, /Sign in to continue/);
 assert.ok(!privateHtml.includes(cookie.split("=")[1]), "Raw session token leaked into page HTML");
 
 const relogin = await post("/api/auth/login", { ...json, ...origin, Cookie: cookie }, loginBody);
@@ -48,7 +49,7 @@ const currentCookie = (relogin.headers.get("set-cookie") || "").split(";")[0];
 assert.notEqual(currentCookie, cookie);
 assert.equal((await fetch(new URL("/api/auth/csrf", base), { headers: { Cookie: cookie } })).status, 401);
 const revokedLearning = await fetch(new URL("/my-learning", base), { headers: { Cookie: cookie } });
-assert.match(await revokedLearning.text(), /An active session is required/);
+assert.match(await revokedLearning.text(), /Sign in to continue/);
 
 const csrfResponse = await fetch(new URL("/api/auth/csrf", base), { headers: { Cookie: currentCookie } });
 assert.equal(csrfResponse.status, 200);
