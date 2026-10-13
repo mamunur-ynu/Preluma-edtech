@@ -47,7 +47,7 @@ from database.repository import (
 )
 from services._common import topic_key
 from services._access import require_active_user
-from security.rate_limit import InProcessRateLimiter
+from security.rate_limit import DatabaseRateLimiter, InProcessRateLimiter, shared_limits_enabled
 from security.document_crypto import decrypt_source, encrypt_source
 
 logger = logging.getLogger("preluma.ai")
@@ -59,6 +59,14 @@ _router: LLMRouter | None = None
 _rag: RAGEngine | None = None
 _rag_lock = threading.Lock()
 _ai_limiter = InProcessRateLimiter(get_settings().ai_requests_per_minute, 60)
+
+
+def _check_ai_limit(user_id: int | None) -> None:
+    key = f"ai:{user_id if user_id is not None else 'anonymous'}"
+    if shared_limits_enabled():
+        DatabaseRateLimiter(get_settings().ai_requests_per_minute, 60).check(key)
+    else:
+        _ai_limiter.check(key)
 
 
 def reset_rate_limits() -> None:
@@ -312,7 +320,7 @@ def ask_tutor(
     if user_id is not None:
         with session_scope() as s:
             require_active_user(s, user_id)
-    _ai_limiter.check(f"ai:{user_id if user_id is not None else 'anonymous'}")
+    _check_ai_limit(user_id)
     question = sanitize_text(question, MAX_QUESTION_CHARS)
     if not question:
         raise ValueError("Please type a question.")
@@ -361,7 +369,7 @@ def chat(user_id: int, message: str, *, session_id: str | None = None, topic: st
     """Free conversation with memory (last turns verbatim + summary of older ones)."""
     with session_scope() as s:
         require_active_user(s, user_id)
-    _ai_limiter.check(f"ai:{user_id}")
+    _check_ai_limit(user_id)
     message = sanitize_text(message, MAX_QUESTION_CHARS)
     if not message:
         raise ValueError("Please type a message.")

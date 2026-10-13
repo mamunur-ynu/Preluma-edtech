@@ -24,6 +24,9 @@ from typing import Any, Callable, Mapping, Sequence
 
 import requests
 
+from config import get_setting, get_settings
+from security.rate_limit import DatabaseRateLimiter, InProcessRateLimiter, RateLimitExceeded, shared_limits_enabled
+
 logger = logging.getLogger("preluma.llm")
 
 Message = Mapping[str, str]                       # {"role": "user"|"assistant", "content": "..."}
@@ -107,6 +110,31 @@ class LLMRouter:
         self.max_tokens = max_tokens or int(os.environ.get("PRELUMA_LLM_MAX_TOKENS", "2200"))
         self.last_error = ""
         self.last_provider = ""
+        self._local_call_budget: tuple[int, InProcessRateLimiter] | None = None
+
+    def _transport_with_budget(self, url: str, headers: dict, body: dict, timeout: int) -> dict:
+        """Reserve one call before every HTTP attempt, including model fallbacks."""
+        raw = get_setting("PRELUMA_PROVIDER_CALLS_PER_HOUR")
+        if not raw and not get_settings().is_sqlite:
+            raise RateLimitExceeded("Live provider call budget is not configured.")
+        try:
+            limit = int(raw) if raw else 120  # bounded local demo default
+        except ValueError as exc:
+            raise RateLimitExceeded("Live provider call budget is invalid.") from exc
+        if limit < 1:
+            raise RateLimitExceeded("Live provider calls are disabled.")
+        try:
+            if shared_limits_enabled():
+                DatabaseRateLimiter(limit, 3600).check("provider:all")
+            else:
+                if self._local_call_budget is None or self._local_call_budget[0] != limit:
+                    self._local_call_budget = (limit, InProcessRateLimiter(limit, 3600))
+                self._local_call_budget[1].check("provider:all")
+        except RateLimitExceeded as exc:
+            raise RateLimitExceeded("Live provider call budget exhausted.") from exc
+        except Exception as exc:
+            raise RateLimitExceeded("Live provider call budget is unavailable.") from exc
+        return self.transport(url, headers, body, timeout)
 
     # ── introspection ────────────────────────────────────────────────────────
     def available(self) -> list[ProviderSpec]:
@@ -130,6 +158,9 @@ class LLMRouter:
         for spec in self.available():
             try:
                 text = self._call(spec, system, user, history)
+            except RateLimitExceeded as exc:
+                errors.append(str(exc))
+                break
             except Exception as exc:  # network, HTTP, malformed JSON …
                 reason = f"{spec.label}: {self._describe(exc)}"
                 logger.warning("LLM provider failed — %s", reason)
@@ -150,7 +181,7 @@ class LLMRouter:
             {"role": "user", "content": user}
         ]
         if spec.wire == "anthropic":
-            payload = self.transport(
+            payload = self._transport_with_budget(
                 spec.url,
                 {"x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
                 {"model": spec.model(), "max_tokens": self.max_tokens, "system": system, "messages": messages},
@@ -162,7 +193,7 @@ class LLMRouter:
             return ""
         if spec.wire == "gemini":
             return self._call_gemini(spec, key, system, messages)
-        payload = self.transport(
+        payload = self._transport_with_budget(
             spec.url,
             {"Authorization": f"Bearer {key}", "Content-Type": "application/json", **spec.extra_headers},
             {
@@ -182,7 +213,7 @@ class LLMRouter:
         errors = []
         for model in dict.fromkeys((spec.model(), *_GEMINI_FALLBACK_MODELS)):  # ordered, unique
             try:
-                payload = self.transport(
+                payload = self._transport_with_budget(
                     spec.url.format(model=model),
                     # Key goes in a header, not the URL, so it never lands in access logs.
                     {"Content-Type": "application/json", "x-goog-api-key": key},
@@ -196,6 +227,8 @@ class LLMRouter:
                 text = str(payload["candidates"][0]["content"]["parts"][0]["text"]).strip()
                 if text:
                     return text
+            except RateLimitExceeded:
+                raise
             except Exception as exc:
                 errors.append(f"{model}: {self._describe(exc)}")
         raise RuntimeError("; ".join(errors) or "no usable Gemini model")

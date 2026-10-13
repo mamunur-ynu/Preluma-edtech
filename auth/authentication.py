@@ -36,7 +36,7 @@ from config import get_settings
 from database.connection import session_scope
 from database.models import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, ROLES, PasswordResetToken, User, utcnow
 from database.repository import UserRepository
-from security.rate_limit import InProcessRateLimiter, RateLimitExceeded
+from security.rate_limit import DatabaseRateLimiter, InProcessRateLimiter, RateLimitExceeded, shared_limits_enabled
 
 logger = logging.getLogger("preluma.auth")
 
@@ -44,6 +44,8 @@ MAX_FAILED_LOGINS = 5
 LOCKOUT_SECONDS = 300
 RESET_CODE_MINUTES = 30
 _reset_issue_limiter = InProcessRateLimiter(3, 3600)
+_shared_failure_limiter = DatabaseRateLimiter(MAX_FAILED_LOGINS, LOCKOUT_SECONDS)
+_shared_reset_issue_limiter = DatabaseRateLimiter(3, 3600)
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,8 @@ _failures_lock = threading.Lock()
 
 
 def _recent_failures(key: str) -> list[float]:
+    if shared_limits_enabled():
+        return [0.0] * _shared_failure_limiter.count(f"auth-failure:{key}")
     cutoff = time.monotonic() - LOCKOUT_SECONDS
     with _failures_lock:
         recent = [t for t in _failures.get(key, []) if t > cutoff]
@@ -82,11 +86,20 @@ def _recent_failures(key: str) -> list[float]:
 
 
 def _record_failure(key: str) -> None:
+    if shared_limits_enabled():
+        try:
+            _shared_failure_limiter.check(f"auth-failure:{key}")
+        except RateLimitExceeded:
+            pass  # the over-limit failure was durably counted
+        return
     with _failures_lock:
         _failures.setdefault(key, []).append(time.monotonic())
 
 
 def _clear_failures(key: str) -> None:
+    if shared_limits_enabled():
+        _shared_failure_limiter.clear(f"auth-failure:{key}")
+        return
     with _failures_lock:
         _failures.pop(key, None)
 
@@ -241,7 +254,8 @@ def issue_reset_code(actor_id: int, target_username: str) -> tuple[bool, str]:
         if target.role != ROLE_STUDENT and not actor_is_admin:
             return False, "Only an administrator can reset a teacher or admin account."
         try:
-            _reset_issue_limiter.check(f"reset-issue:{actor.id}:{target.id}")
+            limiter = _shared_reset_issue_limiter if shared_limits_enabled() else _reset_issue_limiter
+            limiter.check(f"reset-issue:{actor.id}:{target.id}")
         except RateLimitExceeded:
             return False, "Too many reset codes issued. Please try again later."
         repo.invalidate_reset_tokens(target.id)

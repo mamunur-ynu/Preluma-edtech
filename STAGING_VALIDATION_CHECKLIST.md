@@ -12,6 +12,7 @@ Use a staging project containing no production student records. Record operator,
 - [ ] Provision private object storage; require authenticated/signed downloads and malware quarantine.
 - [ ] Put Streamlit behind a supported secure authentication gateway. Keep `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION=false`.
 - [ ] Configure gateway/shared rate limiting for login, reset and AI routes.
+- [ ] Run two PostgreSQL-backed workers: alternate and concurrently submit login/reset/AI/provider attempts to confirm one global quota; simulate store outage and verify fail-closed behavior.
 
 ## Required secret names
 
@@ -21,6 +22,8 @@ Use a staging project containing no production student records. Record operator,
 - `PRELUMA_SESSION_TTL_HOURS`
 - `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION=false`
 - `PRELUMA_AI_REQUESTS_PER_MINUTE`
+- `PRELUMA_RATE_LIMIT_BACKEND=database` (mandatory with PostgreSQL)
+- `PRELUMA_PROVIDER_CALLS_PER_HOUR` (positive owner-approved ceiling; otherwise live providers stay off)
 - `PRELUMA_DOCUMENT_KEY` (required for PostgreSQL uploads/recovery; back up and rotate under a reviewed procedure)
 - `PRELUMA_CONVERSATION_RETENTION_DAYS`
 - `PRELUMA_LLM_TIMEOUT`

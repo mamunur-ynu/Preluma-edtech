@@ -27,6 +27,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -96,6 +97,17 @@ class UserSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class RateLimitBucket(Base):
+    """Shared fixed-window counters; keys are SHA-256 hashes of rate-limit subjects."""
+
+    __tablename__ = "rate_limit_buckets"
+    __table_args__ = (Index("ix_rate_limit_buckets_window_start", "window_start"),)
+
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    window_start: Mapped[int] = mapped_column(BigInteger)
+    count: Mapped[int] = mapped_column(Integer)
 
 
 class Course(Base):

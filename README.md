@@ -117,6 +117,8 @@ Revision `20261013_02` records the course/lesson for future quizzes. Older attem
 Revision `20261013_03` retains encrypted extracted text for document-index recovery. PostgreSQL deployments must supply the same owner-managed `PRELUMA_DOCUMENT_KEY` to every worker; upload fails closed if it is absent. SQLite demos create a private key in `data/document_recovery.key`. Back up the key with the database: losing it makes encrypted sources unrecoverable. Existing uploads predating this revision need an owner re-upload before automatic recovery is possible.
 The local `vector_index.json` still contains retrieval passages; keep the entire data directory on private, access-controlled storage. Encrypted recovery source does not make that process-local index a multi-worker or production-safe store.
 
+Revision `20261013_04` adds atomic database-backed rate-limit buckets. SQLite demos default to in-process limits; PostgreSQL requires shared database limits and an explicit `PRELUMA_PROVIDER_CALLS_PER_HOUR` before live provider calls. The latter limits HTTP attempts, not monetary spend. Gateway/IP controls, provider-aware cost budgets and real PostgreSQL concurrency/outage checks remain release gates.
+
 Legacy CSV import is dry-run by default:
 
 ```bash

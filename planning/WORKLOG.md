@@ -62,3 +62,9 @@
 - Added encrypted extracted-source retention, nullable schema revision `20261013_03`, strict PostgreSQL key requirement and private SQLite demo key. Local startup now rebuilds missing/tampered upload chunks from authenticated ciphertext. Wrong key and old null-ciphertext rows fail closed.
 - Added synthetic migration upgrade/downgrade, restart-recovery and key-permission tests. Focused source/migration suite: 7 passed. Full suite: 139 passed in 6.70 s; Ruff, compileall, Bandit and pip-audit passed; both original image hashes matched.
 - Private vector-index storage, multi-worker consistency, secret-manager backup/rotation and real PostgreSQL staging remain open. No live database, paid provider or deployment was touched.
+
+## 2026-10-13, 15:46 Asia/Shanghai — SEC-03 shared-counter implementation
+
+- Added `rate_limit_buckets` and Alembic revision `20261013_04`. One atomic UPSERT/RETURNING check shares a fixed-window quota across independent database workers and retains denied attempts. Old buckets are pruned. PostgreSQL refuses process-local fallback.
+- Login/reset/AI counters use the shared backend when configured; each provider HTTP attempt consumes a global hourly quota. Without an explicit PostgreSQL provider-call ceiling, live calls fail closed. Synthetic concurrent workers, auth/reset/AI and provider-call tests passed. Full suite: 146 passed in 6.71 s; Ruff, compileall, Bandit and pip-audit passed; both image hashes matched.
+- Remaining SEC-03 work: real PostgreSQL multi-worker/outage test, trusted gateway IP quota, provider/model token-price-aware monetary cap and owner alerting. No real provider call or staging deployment was performed.
