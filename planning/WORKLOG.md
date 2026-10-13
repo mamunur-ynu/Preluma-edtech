@@ -1,5 +1,10 @@
 # Worklog
 
+## 2026-10-14 — synthetic learning/account deletion audit
+
+- Added two isolated SQLite regression tests using disposable synthetic accounts only. Direct deletion of an otherwise unreferenced learner cascaded quiz attempt, learning event, outbox and mastery rows while retaining the independent course. A teacher with an uploaded private document could not be deleted because the uploader foreign key blocked it; the transaction rolled back and the document/account remained. Focused suite: 2 passed; no application delete endpoint was introduced.
+- ADR-015/DATA-06 record that this is **not** a complete account-erasure feature. Policy and isolated PostgreSQL plus encrypted-source/index/object-store/backup rehearsal are required before implementing or advertising deletion. Deactivation is access control, not erasure. Combined full Python suite: 180 passed (one upstream TestClient warning); Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities.
+
 ## 2026-10-13 — INT-02 local source/projection integrity guard
 
 - Added ADR-014 and validation that a v1 quiz event still matches its source attempt: producer/key, source ID, user/course/lesson, occurrence time, topic, score/total/percentage and unique well-formed concept aggregates. Duplicate append now verifies existing evidence. Replay and shadow recommendation reads reject drift; the recommendation API returns a generic 503 instead of returning a corrupt or cross-course citation. Recommendation reads also compare projection count/last event with the stream to catch a moved or missing event.
