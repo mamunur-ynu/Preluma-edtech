@@ -14,6 +14,8 @@ import hashlib
 import secrets
 from datetime import timedelta
 
+from sqlalchemy import update
+
 from config import get_settings
 from database.models import UserSession, utcnow
 from database.repository import SessionRepository, UserRepository
@@ -39,6 +41,20 @@ def create_session_token(user_id: int, ttl_seconds: int | None = None) -> str:
     return token
 
 
+def replace_session_token(user_id: int, previous_token: str | None = None) -> str:
+    """Issue a login token and revoke the cookie it replaces in one transaction."""
+    token = secrets.token_urlsafe(32)
+    with session_scope() as s:
+        if previous_token and len(previous_token) <= 200:
+            SessionRepository(s).revoke(_hash_token(previous_token))
+        SessionRepository(s).add(UserSession(
+            user_id=user_id,
+            token_hash=_hash_token(token),
+            expires_at=utcnow() + timedelta(seconds=get_settings().session_ttl_seconds),
+        ))
+    return token
+
+
 def resolve_session_token(token: str) -> int | None:
     """Return the ``user_id`` for a valid, unexpired, unrevoked, active-user token."""
     if not token or len(token) > 200:
@@ -58,6 +74,40 @@ def revoke_session_token(token: str) -> None:
         return
     with session_scope() as s:
         SessionRepository(s).revoke(_hash_token(token))
+
+
+def rotate_session_token(token: str) -> str | None:
+    """Atomically consume one live token and issue its replacement.
+
+    A competing rotation can consume the same old token only once because the
+    conditional UPDATE is performed by the database before insertion.
+    """
+    if not token or len(token) > 200:
+        return None
+    now = utcnow()
+    with session_scope() as s:
+        user_id = s.scalar(
+            update(UserSession)
+            .where(
+                UserSession.token_hash == _hash_token(token),
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
+            .values(revoked_at=now)
+            .returning(UserSession.user_id)
+        )
+        if user_id is None:
+            return None
+        user = UserRepository(s).get(user_id)
+        if user is None or not user.is_active:
+            return None
+        replacement = secrets.token_urlsafe(32)
+        SessionRepository(s).add(UserSession(
+            user_id=user_id,
+            token_hash=_hash_token(replacement),
+            expires_at=now + timedelta(seconds=get_settings().session_ttl_seconds),
+        ))
+        return replacement
 
 
 def revoke_all_sessions(user_id: int) -> None:

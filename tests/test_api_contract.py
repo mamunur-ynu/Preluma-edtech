@@ -48,7 +48,8 @@ def test_versioned_catalog_is_read_only_and_typed(monkeypatch):
         schema = app.openapi()
         assert schema["paths"]["/v1/catalog/courses"]["get"]["responses"]["200"]["content"][
             "application/json"]["schema"]["$ref"].endswith("CourseListResponse")
-        assert all(set(operations) == {"get"} for operations in schema["paths"].values())
+        for path, operations in schema["paths"].items():
+            assert set(operations) == ({"post"} if path.startswith("/v1/auth/") else {"get"})
 
 
 def test_private_endpoints_require_revocable_session_and_refresh_role(monkeypatch):

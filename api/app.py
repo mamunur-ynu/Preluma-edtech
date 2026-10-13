@@ -10,11 +10,16 @@ from __future__ import annotations
 import secrets
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 
-from api.contracts import CourseListResponse, CourseSummary, CurrentUserResponse, StatusResponse
-from auth.sessions import resolve_session_token
-from config import get_setting
+from api.contracts import (
+    CourseListResponse, CourseSummary, CurrentUserResponse, LoginRequest, SessionResponse, StatusResponse,
+)
+from auth.authentication import login
+from auth.sessions import (
+    replace_session_token, resolve_session_token, revoke_session_token, rotate_session_token,
+)
+from config import get_setting, get_settings
 from database.connection import session_scope
 from database.repository import UserRepository
 from services.course_service import list_courses
@@ -85,3 +90,34 @@ def current_user(user_id: Annotated[int, Depends(require_user)]) -> CurrentUserR
 @app.get("/v1/me/courses", response_model=CourseListResponse)
 def my_courses(user_id: Annotated[int, Depends(require_user)]) -> CourseListResponse:
     return _courses(user_id)
+
+
+@app.post("/v1/auth/login", response_model=SessionResponse, dependencies=[Depends(require_bff)])
+def login_session(
+    payload: LoginRequest, x_preluma_session: Annotated[str | None, Header()] = None,
+) -> SessionResponse:
+    """Private BFF-only credential exchange; never call this from browser JavaScript."""
+    user, _ = login(payload.username, payload.password)
+    if user is None:
+        raise HTTPException(401, "Invalid credentials.")
+    return SessionResponse(
+        session_token=replace_session_token(user.id, x_preluma_session),
+        expires_in_seconds=get_settings().session_ttl_seconds,
+    )
+
+
+@app.post("/v1/auth/rotate", response_model=SessionResponse, dependencies=[Depends(require_bff)])
+def rotate_session(x_preluma_session: Annotated[str | None, Header()] = None) -> SessionResponse:
+    replacement = rotate_session_token(x_preluma_session or "")
+    if replacement is None:
+        raise HTTPException(401, "Active session required.")
+    return SessionResponse(
+        session_token=replacement,
+        expires_in_seconds=get_settings().session_ttl_seconds,
+    )
+
+
+@app.post("/v1/auth/logout", status_code=204, dependencies=[Depends(require_bff)])
+def logout_session(x_preluma_session: Annotated[str | None, Header()] = None) -> Response:
+    revoke_session_token(x_preluma_session or "")
+    return Response(status_code=204)

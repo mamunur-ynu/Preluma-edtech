@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Contract(BaseModel):
@@ -35,3 +35,13 @@ class CurrentUserResponse(Contract):
     username: str
     full_name: str
     role: str
+
+
+class LoginRequest(Contract):
+    username: str = Field(min_length=1, max_length=32)
+    password: str = Field(min_length=1, max_length=512)
+
+
+class SessionResponse(Contract):
+    session_token: str
+    expires_in_seconds: int

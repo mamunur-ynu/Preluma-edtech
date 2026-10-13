@@ -2,7 +2,7 @@
 
 **Light Up Before Class.** Preluma is a Yunnan University pre-class learning platform built with Python and Streamlit. Students prepare through a five-step Mission, adaptive quizzes, grounded AI tutoring, homework and projects; teachers receive course and class insight; administrators manage accounts and controlled password recovery.
 
-This package is the release-hardening continuation of the refactored v5.1 codebase. Streamlit remains the working UI. ADR-011 establishes an incremental FastAPI/Next.js migration on the same modular Python service layer; the new API and web pages are an early, read-only slice, not a replacement for student/teacher workflows.
+This package is the release-hardening continuation of the refactored v5.1 codebase. Streamlit remains the working UI. ADR-011 establishes an incremental FastAPI/Next.js migration on the same modular Python service layer; the new API and web pages are an early slice, not a replacement for student/teacher workflows. Browser authentication routes exist for isolated testing, but there is no authenticated web journey or production gateway yet.
 
 ## Preserved identity
 
@@ -73,9 +73,9 @@ streamlit run streamlit_app.py
 
 Open `http://localhost:8501`. With no API keys, the tutor uses the curated offline fallback. The default SQLite database under `data/` is disposable local/demo storage only.
 
-### Experimental read-only web slice
+### Experimental web and private auth slice
 
-The new `api/` adapter and `web/` Next.js home/catalog run alongside Streamlit. To exercise them locally, use a **synthetic** database and the same random 32+-character `PRELUMA_BFF_SHARED_KEY` on both server processes. Start FastAPI with `python -m uvicorn api.app:app --host 127.0.0.1 --port 8765`, then in `web/` run `npm ci` and `PRELUMA_API_INTERNAL_URL=http://127.0.0.1:8765 npm run dev`. The catalog requires the private API connection; the home page renders without it. Do not place the BFF key in `NEXT_PUBLIC_*`, expose the FastAPI port publicly, or use this slice for login. Run `pytest -q tests/test_api_contract.py` and `cd web && npm run typecheck && npm run build` for its current checks. The intended auth and learning-event contracts are in `docs/WEB_AUTH_BFF_CONTRACT.md` and `docs/LEARNING_INTELLIGENCE_CONTRACT.md`.
+The `api/` adapter and `web/` Next.js home/catalog run alongside Streamlit. To exercise them locally, use a **synthetic** database and the same random 32+-character `PRELUMA_BFF_SHARED_KEY` on both server processes. Start FastAPI with `python -m uvicorn api.app:app --host 127.0.0.1 --port 8765`, then in `web/` run `npm ci` and set server-only `PRELUMA_API_INTERNAL_URL`, `PRELUMA_BFF_SHARED_KEY`, `PRELUMA_PUBLIC_ORIGIN` and `PRELUMA_CSRF_SECRET` before `npm run dev`. The catalog requires the private API connection; the home page renders without it. Private API login/rotation/logout and Next.js BFF cookie/CSRF route handlers have **local synthetic tests only**; there is no login page or student/teacher web parity yet. Never place secrets in `NEXT_PUBLIC_*`, expose the FastAPI port publicly, or deploy this slice without an approved TLS/private-network gateway and browser staging checks. Run `pytest -q tests/test_api_contract.py tests/test_api_auth_contract.py`, `cd web && npm run typecheck && npm run build`; `npm run test:auth` additionally needs running local FastAPI/Next servers and synthetic credentials (`PRELUMA_WEB_BASE_URL`, `PRELUMA_TEST_USERNAME`, `PRELUMA_TEST_PASSWORD`). The contracts are in `docs/WEB_AUTH_BFF_CONTRACT.md` and `docs/LEARNING_INTELLIGENCE_CONTRACT.md`.
 
 Create the first account without putting a password in shell history:
 
@@ -100,6 +100,8 @@ Use environment variables or Streamlit secrets. Never commit `.env` or `.streaml
 | `PRELUMA_EMBEDDINGS` | `auto`, `hashing`, or optional `sentence-transformers` |
 | `PRELUMA_VECTOR_STORE` | `auto` (database on PostgreSQL), `database`, local `memory`, or optional local `faiss` |
 | `PRELUMA_BFF_SHARED_KEY` | Private FastAPI/Next.js server-to-server key (32+ random characters); never browser-exposed |
+| `PRELUMA_PUBLIC_ORIGIN` | Exact first-party web origin for mutation Origin checks; HTTPS outside local development |
+| `PRELUMA_CSRF_SECRET` | Independent 32+ character server-only key for session-bound CSRF proofs |
 | `PRELUMA_PROVIDER_MAX_USD_PER_DAY`, `PRELUMA_PROVIDER_PRICES_JSON` | Owner-supplied conservative provider-cost admission policy; not an invoice-accurate spending guarantee |
 | `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc. | Optional LLM providers; never required for offline mode |
 | `SUPABASE_URL`, `SUPABASE_KEY` | Legacy compatibility storage only; review RLS before use |
