@@ -56,3 +56,9 @@
 - Course-launched Mission preserves the selected course/topic context. Teacher analytics use authorized attributed attempts and mistake joins; per-course drill-down and charts now state quiz averages instead of pretending they are global mastery.
 - Synthetic upgrade/downgrade preserved unknown historical rows as NULL and backfilled only rows with explicit lesson IDs. Focused migration/analytics/AppTests passed; final full suite 135 passed in 6.43 s. Ruff, compileall, Bandit and pip-audit passed.
 - No real PostgreSQL, staging, production or student data was modified. Historical rows with no course/lesson evidence require a reviewed copied-data reconciliation (DATA-05).
+
+## 2026-10-13, 15:31 Asia/Shanghai — DATA-02 encrypted recovery extension
+
+- Added encrypted extracted-source retention, nullable schema revision `20261013_03`, strict PostgreSQL key requirement and private SQLite demo key. Local startup now rebuilds missing/tampered upload chunks from authenticated ciphertext. Wrong key and old null-ciphertext rows fail closed.
+- Added synthetic migration upgrade/downgrade, restart-recovery and key-permission tests. Focused source/migration suite: 7 passed. Full suite: 139 passed in 6.70 s; Ruff, compileall, Bandit and pip-audit passed; both original image hashes matched.
+- Private vector-index storage, multi-worker consistency, secret-manager backup/rotation and real PostgreSQL staging remain open. No live database, paid provider or deployment was touched.

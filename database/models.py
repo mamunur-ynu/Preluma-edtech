@@ -33,6 +33,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -258,6 +259,7 @@ class KnowledgeDocument(Base):
     n_chunks: Mapped[int] = mapped_column(Integer, default=0)
     visibility: Mapped[str] = mapped_column(String(16), default="public", index=True)
     content_sha256: Mapped[str] = mapped_column(String(64), default="", index=True)
+    source_ciphertext: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 

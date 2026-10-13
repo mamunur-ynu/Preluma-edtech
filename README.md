@@ -114,6 +114,9 @@ For a pre-Alembic database, follow [`reports/DATA_MIGRATION.md`](reports/DATA_MI
 
 Revision `20261013_02` records the course/lesson for future quizzes. Older attempts with a lesson ID are backfilled; older attempts without evidence remain unattributed and do not appear in course-specific teacher quiz metrics. Rehearse this revision and rollback on an isolated database copy before any production migration.
 
+Revision `20261013_03` retains encrypted extracted text for document-index recovery. PostgreSQL deployments must supply the same owner-managed `PRELUMA_DOCUMENT_KEY` to every worker; upload fails closed if it is absent. SQLite demos create a private key in `data/document_recovery.key`. Back up the key with the database: losing it makes encrypted sources unrecoverable. Existing uploads predating this revision need an owner re-upload before automatic recovery is possible.
+The local `vector_index.json` still contains retrieval passages; keep the entire data directory on private, access-controlled storage. Encrypted recovery source does not make that process-local index a multi-worker or production-safe store.
+
 Legacy CSV import is dry-run by default:
 
 ```bash

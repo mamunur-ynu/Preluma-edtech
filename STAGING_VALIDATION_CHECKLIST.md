@@ -21,6 +21,7 @@ Use a staging project containing no production student records. Record operator,
 - `PRELUMA_SESSION_TTL_HOURS`
 - `PRELUMA_ALLOW_LEGACY_BROWSER_SESSION=false`
 - `PRELUMA_AI_REQUESTS_PER_MINUTE`
+- `PRELUMA_DOCUMENT_KEY` (required for PostgreSQL uploads/recovery; back up and rotate under a reviewed procedure)
 - `PRELUMA_CONVERSATION_RETENTION_DAYS`
 - `PRELUMA_LLM_TIMEOUT`
 - `PRELUMA_LLM_MAX_TOKENS`
@@ -63,6 +64,7 @@ Never paste values into reports, tickets, logs or screenshots.
 - [ ] Citations quote the retrieved source and missing evidence triggers abstention.
 - [ ] Offline hashing retrieval and optional semantic retrieval are compared on the fixed gold set.
 - [ ] Document replacement/deletion leaves no stale/orphaned chunks after restart.
+- [ ] Restore an encrypted uploaded source after index loss; wrong/missing key denies recovery without exposing text. Verify key-backup restore and document deletion removes ciphertext.
 
 ## Operations
 

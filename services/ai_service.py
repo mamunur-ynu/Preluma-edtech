@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
 
+from cryptography.fernet import InvalidToken
+
 from ai import prompts
 from ai.documents import DocumentError, SourceDocument, extract_text, pack_to_documents
 from ai.llm_router import LLMRouter, get_router
@@ -46,6 +48,7 @@ from database.repository import (
 from services._common import topic_key
 from services._access import require_active_user
 from security.rate_limit import InProcessRateLimiter
+from security.document_crypto import decrypt_source, encrypt_source
 
 logger = logging.getLogger("preluma.ai")
 
@@ -99,13 +102,32 @@ def set_rag(engine: RAGEngine | None) -> None:
 
 
 def reconcile_document_index(engine: RAGEngine) -> dict[str, int]:
-    """Fail closed after interrupted uploads/deletes; never invent lost source text.
+    """Fail closed after interrupted uploads/deletes; restore trusted encrypted text.
 
     The database is authoritative for uploaded-document ownership. An index entry
-    without matching metadata is removed; a database row whose chunks disappeared
-    remains visible to its owner with ``n_chunks=0`` so it can be re-uploaded.
+    without matching metadata is removed. Recoverable rows are reindexed from
+    authenticated encrypted source; legacy rows remain at zero until re-upload.
     """
-    removed = missing = repaired = 0
+    removed = missing = repaired = recovered = 0
+
+    def restore(row: KnowledgeDocument, doc_id: str) -> bool:
+        nonlocal recovered
+        if not row.source_ciphertext:
+            return False
+        try:
+            text = decrypt_source(row.source_ciphertext, row.content_sha256)
+            metadata = {"course_id": row.course_id, "uploaded_by": row.uploaded_by,
+                        "visibility": row.visibility, "content_sha256": row.content_sha256}
+            chunks = engine.index_document(SourceDocument(doc_id, row.title, text, row.source, metadata))
+            if not chunks:
+                return False
+        except (InvalidToken, ValueError, UnicodeError, RuntimeError, OSError):
+            logger.exception("Could not restore encrypted document %s", doc_id)
+            return False
+        row.n_chunks = chunks
+        recovered += 1
+        return True
+
     with session_scope() as s:
         records = {f"doc:{row.id}": row for row in KnowledgeDocumentRepository(s).list_all()}
         for doc_id, count in engine.store.documents().items():
@@ -123,17 +145,20 @@ def reconcile_document_index(engine: RAGEngine) -> dict[str, int]:
                 removed += 1
                 if row is not None:
                     row.n_chunks = 0
+                    restore(row, doc_id)
                 continue
             if row.n_chunks != count:
                 row.n_chunks = count
                 repaired += 1
         for doc_id, row in records.items():
-            if not engine.store.has_document(doc_id) and row.n_chunks:
+            if not engine.store.has_document(doc_id):
                 row.n_chunks = 0
-                missing += 1
-    if removed or missing or repaired:
-        logger.warning("Reconciled document index: removed=%d missing=%d repaired=%d", removed, missing, repaired)
-    return {"removed": removed, "missing": missing, "repaired": repaired}
+                if not restore(row, doc_id):
+                    missing += 1
+    if removed or missing or repaired or recovered:
+        logger.warning("Reconciled document index: removed=%d missing=%d repaired=%d recovered=%d",
+                       removed, missing, repaired, recovered)
+    return {"removed": removed, "missing": missing, "repaired": repaired, "recovered": recovered}
 
 
 # ── provider status (replaces the old llm.py helpers) ────────────────────────
@@ -414,12 +439,14 @@ def index_document(filename: str, data: bytes, *, uploaded_by: int,
     safe_name = sanitize_text(Path(filename).name, 160)
     doc_title = sanitize_text(title or Path(filename).stem, 160) or "Untitled"
     digest = hashlib.sha256(data).hexdigest()
+    ciphertext = encrypt_source(text, digest)
     with session_scope() as s:
         docs = KnowledgeDocumentRepository(s)
         existing = docs.get_by_digest(digest, course_id, uploaded_by, selected_visibility)
         if existing is not None:
             existing.title = doc_title
             existing.source = safe_name
+            existing.source_ciphertext = ciphertext
         row = existing or docs.add(
             KnowledgeDocument(
                 title=doc_title,
@@ -428,6 +455,7 @@ def index_document(filename: str, data: bytes, *, uploaded_by: int,
                 uploaded_by=uploaded_by,
                 visibility=selected_visibility,
                 content_sha256=digest,
+                source_ciphertext=ciphertext,
             )
         )
         doc_id, row_id = f"doc:{row.id}", row.id

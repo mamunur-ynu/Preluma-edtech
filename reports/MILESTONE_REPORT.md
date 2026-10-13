@@ -10,15 +10,17 @@ Updated: 2026-10-13, Asia/Shanghai. Branch `feature/preluma-release-hardening`, 
 - DATA-02: reconcile uploaded-document vectors against authoritative database metadata on startup, remove orphan/tampered chunks, mark lost chunks for re-upload, and delete vectors before committing document removal.
 - SEC-03 partial local hardening: bound reset-code issuance and unify chat/tutor per-user request budget. A shared multi-worker limiter and per-provider spend ceilings are **not** complete.
 - DATA-03: preserve course/lesson context on new quiz attempts; course-launched Mission carries that context, ambiguous attempts stay unattributed, and teacher analytics use course-filtered quiz activity rather than mixed global mastery.
+- DATA-02 extension: authenticated encrypted extracted source is retained for new uploads; local restart can rebuild lost/tampered chunks with the same key. PostgreSQL uploads require an explicit server secret.
 - The repository now has durable `AGENTS.md` and the planning queue, worklog, current-state checkpoint, release gates and decision log specified by the owner.
 
 ## Verification actually executed
 
 | Check | Outcome |
 |---|---|
-| Full Pytest | 135 passed in 6.43 s (latest DATA-03 run) |
+| Full Pytest | 139 passed in 6.70 s (latest encrypted-recovery run) |
 | Auth/security focused tests | 30 passed in 1.34 s |
 | Course provenance migration and workflow | Synthetic upgrade/downgrade, multi-course isolation and course-to-Mission AppTest passed |
+| Encrypted-source recovery | 7 focused source/migration tests passed; restart rebuild, wrong-key and legacy-null cases covered |
 | SEC-04 + Streamlit runtime focused tests | 13 passed in 4.68 s |
 | AI/security/recovery focused tests | 33 passed in 1.24 s before the final delete-order regression was added |
 | Role and login Streamlit AppTests | 10 passed in 4.23 s |
@@ -33,7 +35,7 @@ These tests use synthetic SQLite data and offline/mocked AI. Python 3.10, real P
 
 Course views now isolate attributed quiz activity for students enrolled in multiple courses. Personal mastery remains global; teacher charts intentionally show course quiz averages instead. Historical attempts without an explicit course/lesson cannot be reliably assigned and are excluded from course metrics pending reviewed data reconciliation (DATA-05).
 
-The uploaded-document source bytes are not retained, so a lost index cannot be rebuilt automatically; owners must re-upload. JSON vector persistence is process-local and not safe as a coordinated multi-worker index. DATA-04 tracks that production blocker.
+New uploads retain encrypted extracted text and can be rebuilt after local index loss with the same key. Old uploads without saved source still require one owner re-upload; a lost key cannot decrypt retained sources. JSON vector persistence is process-local, contains retrieval passages, and is not safe as a coordinated multi-worker index. DATA-04/SEC-05 track those production blockers.
 
 Login/reset-failure, reset-issuance and AI request counters are still process-local. They do not cap provider failover calls or spending across workers. The production contract is in `docs/RATE_LIMIT_PRODUCTION_CONTRACT.md`; SEC-03 remains open.
 
