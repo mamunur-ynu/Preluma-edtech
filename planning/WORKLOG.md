@@ -49,3 +49,10 @@
 - Added regression tests for both bypasses and wrote a production shared-limiter/provider-budget contract. Focused auth/security suite: 30 passed in 1.34 s. Full suite: 132 passed in 5.84 s. Ruff, compileall, Bandit and pip-audit passed; both preserved image hashes matched.
 - Distributed enforcement and paid-provider budget limits were not implemented or tested; SEC-03 remains in progress. No staging environment, paid provider or production account was touched.
 - GitHub feature-branch commit `8ccf25b` was pushed to existing draft PR #2. A ZIP of that commit passed extraction tests: 132 passed in 5.90 s, Ruff passed, both image hashes matched, archive checksum verified. Rebuild after this documentation-only checkpoint commit so filename and HEAD align.
+
+## 2026-10-13, 15:23 Asia/Shanghai — DATA-03
+
+- Added nullable quiz `course_id` plus Alembic revision `20261013_02`. Future attempts carry explicit/uniquely inferred course and lesson IDs. Ambiguous attempts remain unattributed and cannot complete multiple courses' lessons.
+- Course-launched Mission preserves the selected course/topic context. Teacher analytics use authorized attributed attempts and mistake joins; per-course drill-down and charts now state quiz averages instead of pretending they are global mastery.
+- Synthetic upgrade/downgrade preserved unknown historical rows as NULL and backfilled only rows with explicit lesson IDs. Focused migration/analytics/AppTests passed; final full suite 135 passed in 6.43 s. Ruff, compileall, Bandit and pip-audit passed.
+- No real PostgreSQL, staging, production or student data was modified. Historical rows with no course/lesson evidence require a reviewed copied-data reconciliation (DATA-05).

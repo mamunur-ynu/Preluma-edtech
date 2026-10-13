@@ -16,6 +16,7 @@ from typing import Any, Mapping
 import streamlit as st
 
 from services import learning_service
+from services._common import topic_key
 
 logger = logging.getLogger("preluma.ui")
 _T0_KEY = "_quiz_t0"
@@ -37,9 +38,13 @@ def record_mission(result: Mapping[str, Any], topic: str) -> None:
     if not user_id:
         return
     try:
+        course_id = st.session_state.get("mission_course_id")
+        if topic_key(topic) != st.session_state.get("mission_course_topic"):
+            course_id = None
         outcome = learning_service.record_mission_result(
             int(user_id), topic, result, learning_mode=st.session_state.get("learning_mode", ""),
             duration_seconds=_elapsed(), source="mission",
+            course_id=course_id,
         )
         _announce(outcome)
     except Exception:

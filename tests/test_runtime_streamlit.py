@@ -68,6 +68,28 @@ def test_quiz_result_is_saved_to_the_learning_database():
     assert dashboard.stats["attempts"] == 1
 
 
+def test_course_lesson_launch_attributes_mission_attempt_to_course():
+    from database.connection import session_scope
+    from database.repository import QuizAttemptRepository
+    from services import course_service
+
+    at = logged_in_app("student", "Courses")
+    course = course_service.list_courses()[0]
+    user_id = at.session_state["user_id"]
+    course_service.enroll(user_id, course.id)
+    at.session_state["_course_open"] = course.id
+    at.run()
+    assert len(at.exception) == 0
+    _click(at, "Start")
+    assert at.session_state["mission_course_id"] == course.id
+    for label in ["Start Pre-Class Mission", "See a Real Example →", "Try It Yourself →", "Take the Mock Test →"]:
+        _click(at, label)
+    _answer_mock_test(at)
+    with session_scope() as session:
+        attempts = QuizAttemptRepository(session).list_for_user(user_id)
+    assert attempts[0].course_id == course.id
+
+
 def test_streamlit_sidebar_pages_open():
     at = logged_in_app("student")
     for page in ["Ask Preluma AI", "My Homework", "Dashboard", "Courses", "AI Tutor", "My Progress"]:

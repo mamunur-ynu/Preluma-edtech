@@ -112,6 +112,8 @@ alembic upgrade head
 
 For a pre-Alembic database, follow [`reports/DATA_MIGRATION.md`](reports/DATA_MIGRATION.md) before stamping or upgrading. Do not stamp an unknown production schema without inspecting it.
 
+Revision `20261013_02` records the course/lesson for future quizzes. Older attempts with a lesson ID are backfilled; older attempts without evidence remain unattributed and do not appear in course-specific teacher quiz metrics. Rehearse this revision and rollback on an isolated database copy before any production migration.
+
 Legacy CSV import is dry-run by default:
 
 ```bash

@@ -188,6 +188,9 @@ def get_photo_src(photo_key: str) -> str | None:
 
 def go_to(page: str, **state: object) -> None:
     """Navigate to another page (optionally pre-filling session-state values) and rerun."""
+    if page != "Student Mission" or "mission_course_id" not in state:
+        st.session_state.pop("mission_course_id", None)
+        st.session_state.pop("mission_course_topic", None)
     for key, value in state.items():
         st.session_state[key] = value
     st.session_state.active_page = page

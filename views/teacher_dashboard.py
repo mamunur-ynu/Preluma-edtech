@@ -31,21 +31,23 @@ def teacher_dashboard_page() -> None:
 
     card_grid([
         metric_card("Students", overview.students, f"{overview.active_last_7_days} active in the last 7 days"),
-        metric_card("Average mastery", f"{overview.average_mastery:.0f}%", "Across measured students",
+        metric_card("Student quiz average", f"{overview.average_mastery:.0f}%", "Each active student weighted equally",
                     tone_for(overview.average_mastery) if overview.average_mastery else ""),
-        metric_card("Average quiz score", f"{overview.average_quiz_score:.0f}%", f"Last {days} days"),
+        metric_card("Attempt average", f"{overview.average_quiz_score:.0f}%", f"All recorded quizzes · last {days} days"),
         metric_card("Completion rate", f"{overview.completion_rate:.0f}%", "Lessons completed by enrolled students"),
     ])
 
     a, b = st.columns(2, gap="large")
     with a:
         if any(d["count"] for d in overview.distribution):
-            st.plotly_chart(charts.distribution_bar(overview.distribution), use_container_width=True)
+            st.plotly_chart(charts.distribution_bar(overview.distribution, "Student quiz-average distribution"),
+                            use_container_width=True)
         else:
-            empty_state("The readiness distribution appears after students take quizzes.")
+            empty_state("The quiz-average distribution appears after students take quizzes in this course.")
     with b:
         if overview.topic_ranking:
-            st.plotly_chart(charts.topic_difficulty(overview.topic_ranking), use_container_width=True)
+            st.plotly_chart(charts.topic_difficulty(overview.topic_ranking, "Hardest topics (class quiz average)"),
+                            use_container_width=True)
         else:
             empty_state("Hardest topics appear after students take quizzes.")
 
@@ -56,7 +58,7 @@ def teacher_dashboard_page() -> None:
 
     st.markdown("### Students")
     table = pd.DataFrame([
-        {"Student": r.name, "Username": r.username, "Mastery %": r.overall_mastery, "Readiness": r.label,
+        {"Student": r.name, "Username": r.username, "Quiz average %": r.overall_mastery, "Readiness": r.label,
          "Quizzes": r.attempts, "Last active": r.last_active, "Needs help with": ", ".join(r.weak_topics) or "—"}
         for r in overview.student_rows
     ])
@@ -67,7 +69,8 @@ def teacher_dashboard_page() -> None:
     if picked != "—":
         detail = analytics_service.student_detail(actor_id, names[picked], labels[choice])
         if detail["topics"]:
-            st.plotly_chart(charts.mastery_bar([(t["topic"], t["mastery"]) for t in detail["topics"]], picked),
+            st.plotly_chart(charts.mastery_bar([(t["topic"], t["mastery"]) for t in detail["topics"]],
+                                              f"{picked}: quiz averages"),
                             use_container_width=True)
         else:
             st.caption("This student has not taken a quiz yet.")

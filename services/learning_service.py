@@ -168,6 +168,7 @@ def record_quiz_attempt(
     learning_mode: str = "",
     details: Sequence[Mapping[str, object]] = (),
     when: datetime | None = None,
+    course_id: int | None = None,
 ) -> AttemptOutcome:
     """Store one quiz attempt and update everything derived from it.
 
@@ -204,9 +205,19 @@ def record_quiz_attempt(
 
     with session_scope() as s:
         require_active_user(s, user_id)
+        enrolled = set(EnrollmentRepository(s).course_ids_for_user(user_id))
+        matching_lessons = list(LessonRepository(s).find_by_topic(key))
+        matching_courses = {lesson.course_id for lesson in matching_lessons} & enrolled
+        if course_id is not None:
+            if course_id not in matching_courses:
+                raise PermissionError("The topic is not in an enrolled course.")
+        elif len(matching_courses) == 1:
+            course_id = next(iter(matching_courses))
+        lesson_id = next((lesson.id for lesson in matching_lessons if lesson.course_id == course_id), None)
         attempt = QuizAttemptRepository(s).add(
             QuizAttempt(
-                user_id=user_id, topic=key, source=source, score=score, total=total,
+                user_id=user_id, course_id=course_id, lesson_id=lesson_id, topic=key,
+                source=source, score=score, total=total,
                 percentage=round(100.0 * score / total, 1), duration_seconds=max(0, int(duration_seconds)),
                 learning_mode=learning_mode[:32], created_at=now,
             ),
@@ -232,9 +243,12 @@ def record_quiz_attempt(
 
         # Lessons for this topic in the student's enrolled courses move forward.
         completed_now = 0
-        enrolled = set(EnrollmentRepository(s).course_ids_for_user(user_id))
-        for lesson in LessonRepository(s).find_by_topic(key):
+        for lesson in matching_lessons:
+            if course_id is None:
+                continue  # ambiguous/direct practice must not complete multiple courses
             if lesson.course_id not in enrolled:
+                continue
+            if lesson.course_id != course_id:
                 continue
             done = attempt.percentage >= COMPLETION_THRESHOLD
             ProgressRepository(s).upsert(
@@ -263,11 +277,13 @@ def record_quiz_attempt(
 def record_mission_result(
     user_id: int, topic: str, grade_result: Mapping[str, object], *,
     learning_mode: str = "", duration_seconds: int = 0, source: str = "mission",
+    course_id: int | None = None,
 ) -> AttemptOutcome:
     """Convenience wrapper for the dict returned by ``core.assessment_engine.grade``."""
     return record_quiz_attempt(
         user_id, topic, int(grade_result["score"]), int(grade_result["total"]),
         duration_seconds=duration_seconds, source=source, learning_mode=learning_mode,
+        course_id=course_id,
         details=grade_result.get("details", []),  # type: ignore[arg-type]
     )
 

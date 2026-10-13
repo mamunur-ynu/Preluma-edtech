@@ -27,3 +27,7 @@ Decision: the database is authoritative for document ownership and privacy metad
 ## ADR-007 — Bound local reset issuance and unify AI endpoint quota
 
 Decision: permit at most three reset-code issuances per actor/target hour and have chat plus tutor consume one per-user local AI request quota. This closes two avoidable demo bypasses without changing offline fallback. The limiter remains process-local and is **not** a multi-worker security or spend boundary. A shared atomic limiter and pre-provider-call budget are required before staging/pilot; see `docs/RATE_LIMIT_PRODUCTION_CONTRACT.md`. Rollback: revert this guard commit if a regression is found, while keeping production use blocked.
+
+## ADR-008 — Attribute quiz activity, never guess ambiguous history
+
+Decision: store `course_id` and `lesson_id` on future quiz attempts, infer a course only when exactly one enrolled course contains the topic, and keep ambiguous/direct attempts unattributed. A course-launched Mission carries explicit context. Teacher course/global views use attributed attempts within accessible courses for scores, topics, mistakes and drill-down; these values are labeled quiz averages, not personal mastery. The student's global mastery model is unchanged. Migration backfills only old rows with explicit lesson IDs. Reason: current enrollment is not reliable evidence of historical course membership. Rollback: revert the schema and service changes in an isolated environment only after a backup; deployed rows with provenance would be lost on downgrade.

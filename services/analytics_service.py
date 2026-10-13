@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from core.analytics_engine import completion_rate, readiness_label, score_distribution, topic_difficulty_ranking
-from core.learning_engine import SKILLS_TOPIC, mastery_level
+from core.learning_engine import mastery_level
 from database.connection import session_scope
 from database.models import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER
 from database.repository import (
@@ -20,7 +20,6 @@ from database.repository import (
     LessonRepository,
     ProgressRepository,
     QuizAttemptRepository,
-    SkillProfileRepository,
     UserRepository,
 )
 from services._common import now_utc, title_for
@@ -69,6 +68,7 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
     now = now_utc()
     with session_scope() as s:
         allowed_courses, is_admin = _authorized_courses(s, actor_id, course_id)
+        scoped_courses = None if is_admin and course_id is None else allowed_courses
         users = UserRepository(s)
         roster = [u for u in users.list_by_role(ROLE_STUDENT) if u.is_active]
         if not is_admin or course_id is not None:
@@ -79,12 +79,7 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
         if not roster:
             return overview
 
-        skills = [r for r in SkillProfileRepository(s).list_topic_level() if r.user_id in ids and r.topic != SKILLS_TOPIC and r.attempts > 0]
-        per_student: dict[int, list] = {}
-        for row in skills:
-            per_student.setdefault(row.user_id, []).append(row)
-
-        attempts = [a for a in QuizAttemptRepository(s).all_recent(days) if a.user_id in ids]
+        attempts = [a for a in QuizAttemptRepository(s).all_recent(days, scoped_courses) if a.user_id in ids]
         attempts_by_user: dict[int, list] = {}
         for a in attempts:
             attempts_by_user.setdefault(a.user_id, []).append(a)
@@ -94,24 +89,29 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
 
         rows = []
         for u in roster:
-            mine = per_student.get(u.id, [])
-            overall = sum(r.mastery for r in mine) / len(mine) if mine else 0.0
-            last = max((a.created_at for a in attempts_by_user.get(u.id, [])), default=None)
-            weak = tuple(title_for(r.topic) for r in sorted(mine, key=lambda r: r.mastery) if r.mastery < 60)[:3]
+            mine = attempts_by_user.get(u.id, [])
+            overall = sum(a.percentage for a in mine) / len(mine) if mine else 0.0
+            last = max((a.created_at for a in mine), default=None)
+            topic_scores: dict[str, list[float]] = {}
+            for attempt in mine:
+                topic_scores.setdefault(attempt.topic, []).append(attempt.percentage)
+            weak = tuple(title_for(topic) for topic, scores in sorted(
+                topic_scores.items(), key=lambda item: sum(item[1]) / len(item[1])
+            ) if sum(scores) / len(scores) < 60)[:3]
             rows.append(StudentRow(
                 user_id=u.id, name=u.full_name, username=u.username, overall_mastery=round(overall, 1),
-                label=readiness_label(overall) if mine else "No data yet", attempts=len(attempts_by_user.get(u.id, [])),
+                label=readiness_label(overall) if mine else "No data yet", attempts=len(mine),
                 last_active=last.strftime("%Y-%m-%d") if last else "—", weak_topics=weak,
             ))
         overview.student_rows = sorted(rows, key=lambda r: r.overall_mastery)
 
-        measured = [r.overall_mastery for r in rows if r.attempts or r.overall_mastery]
+        measured = [r.overall_mastery for r in rows if r.attempts]
         overview.average_mastery = round(sum(measured) / len(measured), 1) if measured else 0.0
         overview.average_quiz_score = round(sum(a.percentage for a in attempts) / len(attempts), 1) if attempts else 0.0
         overview.distribution = score_distribution(r.overall_mastery for r in rows if r.attempts)
         overview.topic_ranking = [
             {**item, "title": title_for(item["topic"])}
-            for item in topic_difficulty_ranking({"topic": r.topic, "mastery": r.mastery} for r in skills)
+            for item in topic_difficulty_ranking({"topic": a.topic, "mastery": a.percentage} for a in attempts)
         ]
 
         by_day: dict[str, list[float]] = {}
@@ -122,7 +122,7 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
         ]
         overview.top_mistakes = [
             {"topic": title_for(t), "concept": c or "(general)", "count": n}
-            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept(ids)[:8]
+            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept(ids, scoped_courses)[:8]
         ]
 
         # completion: share of lessons completed across the roster's enrolled courses
@@ -149,11 +149,19 @@ def student_detail(actor_id: int, user_id: int, course_id: int | None = None) ->
             enrolled = set(EnrollmentRepository(s).course_ids_for_user(user_id))
             if not enrolled.intersection(allowed_courses):
                 raise PermissionError("This student is not enrolled in an accessible course.")
-        rows = [r for r in SkillProfileRepository(s).list_for_user(user_id) if r.concept == "" and r.topic != SKILLS_TOPIC]
+        scoped_courses = None if is_admin and course_id is None else allowed_courses
+        attempts = [a for a in QuizAttemptRepository(s).list_for_user(user_id)
+                    if scoped_courses is None or a.course_id in scoped_courses]
+        by_topic: dict[str, list] = {}
+        for attempt in attempts:
+            by_topic.setdefault(attempt.topic, []).append(attempt)
         return {
             "topics": [
-                {"topic": title_for(r.topic), "mastery": r.mastery, "level": mastery_level(r.mastery),
-                 "attempts": r.attempts, "trend": round(r.mastery - r.previous_mastery, 1) if r.attempts > 1 else 0.0}
-                for r in sorted(rows, key=lambda r: r.mastery)
+                {"topic": title_for(topic), "mastery": round(sum(a.percentage for a in rows) / len(rows), 1),
+                 "level": mastery_level(sum(a.percentage for a in rows) / len(rows)),
+                 "attempts": len(rows), "trend": round(rows[0].percentage - rows[1].percentage, 1)
+                 if len(rows) > 1 else 0.0}
+                for topic, rows in sorted(by_topic.items(),
+                                          key=lambda item: sum(a.percentage for a in item[1]) / len(item[1]))
             ]
         }

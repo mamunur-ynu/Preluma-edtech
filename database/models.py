@@ -156,6 +156,7 @@ class QuizAttempt(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     lesson_id: Mapped[int | None] = mapped_column(ForeignKey("lessons.id"), nullable=True)
+    course_id: Mapped[int | None] = mapped_column(ForeignKey("courses.id"), nullable=True, index=True)
     topic: Mapped[str] = mapped_column(String(80), index=True)
     source: Mapped[str] = mapped_column(String(16), default="mission")  # mission|homework|practice
     score: Mapped[int] = mapped_column(Integer)

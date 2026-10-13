@@ -296,21 +296,32 @@ class QuizAttemptRepository(_Repo):
             .limit(limit)
         ).all()
 
-    def all_recent(self, days: int = 90) -> Sequence[QuizAttempt]:
+    def all_recent(self, days: int = 90, course_ids: set[int] | None = None) -> Sequence[QuizAttempt]:
         since = utcnow() - timedelta(days=days)
-        return self.session.scalars(
-            select(QuizAttempt).where(QuizAttempt.created_at >= since).order_by(QuizAttempt.created_at)
-        ).all()
+        stmt = select(QuizAttempt).where(QuizAttempt.created_at >= since)
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            stmt = stmt.where(QuizAttempt.course_id.in_(course_ids))
+        return self.session.scalars(stmt.order_by(QuizAttempt.created_at)).all()
 
-    def mistake_counts_by_concept(self, user_ids: set[int]) -> list[tuple[str, str, int]]:
+    def mistake_counts_by_concept(
+        self, user_ids: set[int], course_ids: set[int] | None = None
+    ) -> list[tuple[str, str, int]]:
         if not user_ids:
             return []
-        rows = self.session.execute(
+        stmt = (
             select(QuizMistake.topic, QuizMistake.concept, func.count())
+            .join(QuizAttempt, QuizMistake.attempt_id == QuizAttempt.id)
             .where(QuizMistake.user_id.in_(user_ids))
             .group_by(QuizMistake.topic, QuizMistake.concept)
             .order_by(func.count().desc())
-        ).all()
+        )
+        if course_ids is not None:
+            if not course_ids:
+                return []
+            stmt = stmt.where(QuizAttempt.course_id.in_(course_ids))
+        rows = self.session.execute(stmt).all()
         return [(t, c, int(n)) for t, c, n in rows]
 
 

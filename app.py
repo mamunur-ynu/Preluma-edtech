@@ -89,6 +89,8 @@ def _nav_button(label: str, page_name: str, badge: str = "", in_expander: bool =
     active = st.session_state.get("active_page") == page_name
     button = st.button if in_expander else st.sidebar.button
     if button(display, key=f"nav_{page_name}", use_container_width=True, type="primary" if active else "secondary"):
+        st.session_state.pop("mission_course_id", None)
+        st.session_state.pop("mission_course_topic", None)
         st.session_state.active_page = page_name
         try:
             st.query_params["page"] = page_name

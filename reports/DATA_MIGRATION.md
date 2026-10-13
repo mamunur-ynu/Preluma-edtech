@@ -5,6 +5,7 @@
 - New relational target models for homework assignments/submissions, projects/files, announcements, profile extras, import runs and quarantine rows.
 - `KnowledgeDocument` provenance fields: visibility, SHA-256 and version.
 - Reviewed Alembic migration `20261013_01_release_hardening.py` with upgrade and downgrade paths.
+- Alembic revision `20261013_02_course_provenance.py` adds nullable quiz course provenance and backfills only attempts with an explicit lesson ID. Other historical attempts remain unattributed; current enrollment is not a valid historical substitute.
 - `scripts/import_legacy_data.py`: dry-run by default, explicit apply, mandatory apply backup directory, source checksums, stable legacy IDs, duplicate detection, transactional writes and quarantine reporting.
 - Compatibility services keep the working legacy UI intact until migration evidence is approved.
 

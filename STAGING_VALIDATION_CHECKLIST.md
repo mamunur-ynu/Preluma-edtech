@@ -36,6 +36,7 @@ Never paste values into reports, tickets, logs or screenshots.
 - [ ] Resolve every ambiguous/missing identity; do not map duplicate names automatically.
 - [ ] Run `alembic current` and review the schema diff.
 - [ ] Run `alembic upgrade head` on staging.
+- [ ] Verify `20261013_02` retains historical ambiguous quiz attempts as NULL and backfills only explicit lesson-linked attempts; rehearse downgrade on a disposable restored copy.
 - [ ] Run the importer with explicit `--apply --backup-dir`.
 - [ ] Re-run it and confirm zero new inserts and stable quarantine counts.
 - [ ] Reconcile users, homework, submissions, projects, files and announcements by count and sample checksum.
@@ -47,6 +48,7 @@ Never paste values into reports, tickets, logs or screenshots.
 - [ ] Student A cannot see Student B history, files, conversations, progress or submissions.
 - [ ] Students cannot open teacher/admin pages or index/delete knowledge documents.
 - [ ] Teachers cannot view another teacher's private course analytics/documents.
+- [ ] A student enrolled in two courses with the same topic produces separate course quiz counts, mistakes and progress; unattributed old attempts appear in neither course's metrics.
 - [ ] Admin-only activation/deactivation works and revokes sessions.
 - [ ] Student: register/login/logout, Home, Dashboard, Courses, full Mission, quiz persistence, Tutor, homework, projects, profile and notifications.
 - [ ] Teacher: dashboards, course/homework creation, submissions, announcements, projects, knowledge upload/retrieval/delete.

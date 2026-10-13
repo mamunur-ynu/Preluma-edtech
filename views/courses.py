@@ -64,7 +64,8 @@ def _course_detail(user_id: int, course_id: int) -> None:
     else:
         nxt = course_service.next_lesson(user_id, course.id)
         if nxt and st.button(f"▶ Continue: {nxt.title}", type="primary", key="continue_btn"):
-            go_to("Student Mission", topic=_mission_title(nxt.topic_key), mission_started=False, mission_step=0)
+            go_to("Student Mission", topic=_mission_title(nxt.topic_key), mission_started=False,
+                  mission_step=0, mission_course_id=course.id, mission_course_topic=nxt.topic_key)
 
     for lesson in course.lessons:
         label, tone = _STATUS.get(lesson.status, _STATUS["not_started"])
@@ -76,7 +77,8 @@ def _course_detail(user_id: int, course_id: int) -> None:
             f"{'<div class=sub>Builds on: ' + esc(', '.join(lesson.locked_by)) + '</div>' if lesson.locked_by and lesson.status == 'not_started' else ''}"
             f"</div>", unsafe_allow_html=True)
         if course.enrolled and b.button("Start", key=f"start_{lesson.id}", use_container_width=True):
-            go_to("Student Mission", topic=_mission_title(lesson.topic_key), mission_started=False, mission_step=0)
+            go_to("Student Mission", topic=_mission_title(lesson.topic_key), mission_started=False,
+                  mission_step=0, mission_course_id=course.id, mission_course_topic=lesson.topic_key)
 
 
 def _mission_title(key: str) -> str:
