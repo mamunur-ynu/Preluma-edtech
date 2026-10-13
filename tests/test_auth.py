@@ -113,6 +113,18 @@ def test_issuing_a_new_reset_code_invalidates_the_previous_one():
     assert reset_password_with_code("reset-student", second, "N3w-Passw0rd!")[0]
 
 
+def test_reset_issuance_is_bounded_without_invalidating_latest_code():
+    teacher = create_user("limit-teacher", GOOD, "Limit Teacher", "teacher")
+    other_teacher = create_user("other-teacher", GOOD, "Other Teacher", "teacher")
+    create_user("limit-student", GOOD, "Limit Student")
+    codes = [issue_reset_code(teacher.id, "limit-student") for _ in range(3)]
+    assert all(ok for ok, _ in codes)
+    ok, reason = issue_reset_code(teacher.id, "limit-student")
+    assert not ok and "Too many reset codes" in reason
+    assert reset_password_with_code("limit-student", codes[-1][1], "N3w-Passw0rd!")[0]
+    assert issue_reset_code(other_teacher.id, "limit-student")[0]
+
+
 def test_demo_users_only_come_from_configuration(monkeypatch):
     from auth import ensure_demo_users
 

@@ -287,7 +287,7 @@ def ask_tutor(
     if user_id is not None:
         with session_scope() as s:
             require_active_user(s, user_id)
-    _ai_limiter.check(f"tutor:{user_id if user_id is not None else 'anonymous'}")
+    _ai_limiter.check(f"ai:{user_id if user_id is not None else 'anonymous'}")
     question = sanitize_text(question, MAX_QUESTION_CHARS)
     if not question:
         raise ValueError("Please type a question.")
@@ -336,7 +336,7 @@ def chat(user_id: int, message: str, *, session_id: str | None = None, topic: st
     """Free conversation with memory (last turns verbatim + summary of older ones)."""
     with session_scope() as s:
         require_active_user(s, user_id)
-    _ai_limiter.check(f"chat:{user_id}")
+    _ai_limiter.check(f"ai:{user_id}")
     message = sanitize_text(message, MAX_QUESTION_CHARS)
     if not message:
         raise ValueError("Please type a message.")

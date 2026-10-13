@@ -23,3 +23,7 @@ Decision: active teachers may view students enrolled in their published courses 
 ## ADR-006 — Database-authoritative uploaded-document recovery
 
 Decision: the database is authoritative for document ownership and privacy metadata. On local index startup, remove uploaded vectors with no matching DB record or mismatched scope/count, repair a completed vector write whose DB count commit was interrupted, and mark missing vectors as zero-chunk rows requiring re-upload. Delete searchable vectors before committing metadata removal. Reason: this fails closed in common crash windows without storing private source bytes. Rollback: revert DATA-02, but block uploaded-document use because stale vectors could remain after interrupted deletion. Multi-worker coordination is not solved by this decision (DATA-04).
+
+## ADR-007 — Bound local reset issuance and unify AI endpoint quota
+
+Decision: permit at most three reset-code issuances per actor/target hour and have chat plus tutor consume one per-user local AI request quota. This closes two avoidable demo bypasses without changing offline fallback. The limiter remains process-local and is **not** a multi-worker security or spend boundary. A shared atomic limiter and pre-provider-call budget are required before staging/pilot; see `docs/RATE_LIMIT_PRODUCTION_CONTRACT.md`. Rollback: revert this guard commit if a regression is found, while keeping production use blocked.

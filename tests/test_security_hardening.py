@@ -46,6 +46,14 @@ def test_rate_limiter_enforces_sliding_window():
     limiter.check("student:2")
 
 
+def test_ai_request_budget_is_shared_across_chat_and_tutor(monkeypatch):
+    user = create_user("budget-student", PW, "Budget Student")
+    monkeypatch.setattr(ai_service, "_ai_limiter", InProcessRateLimiter(1, 60))
+    ai_service.chat(user.id, "What is statistics?")
+    with pytest.raises(RateLimitExceeded):
+        ai_service.ask_tutor("Explain statistics", user_id=user.id)
+
+
 def test_rag_filters_private_and_cross_course_documents_before_ranking():
     rag = RAGEngine(embedder=HashingEmbedder())
     text = "Orchid security protocol uses a violet handshake token. " * 5

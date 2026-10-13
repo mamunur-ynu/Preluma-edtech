@@ -36,12 +36,14 @@ from config import get_settings
 from database.connection import session_scope
 from database.models import ROLE_ADMIN, ROLE_STUDENT, ROLE_TEACHER, ROLES, PasswordResetToken, User, utcnow
 from database.repository import UserRepository
+from security.rate_limit import InProcessRateLimiter, RateLimitExceeded
 
 logger = logging.getLogger("preluma.auth")
 
 MAX_FAILED_LOGINS = 5
 LOCKOUT_SECONDS = 300
 RESET_CODE_MINUTES = 30
+_reset_issue_limiter = InProcessRateLimiter(3, 3600)
 
 
 @dataclass(frozen=True)
@@ -93,6 +95,7 @@ def reset_throttle() -> None:
     """Forget all failed attempts (used by tests)."""
     with _failures_lock:
         _failures.clear()
+    _reset_issue_limiter.reset()
 
 
 def is_locked(username: str) -> bool:
@@ -237,6 +240,10 @@ def issue_reset_code(actor_id: int, target_username: str) -> tuple[bool, str]:
         actor_is_admin = actor.role == ROLE_ADMIN or actor.username in get_settings().admin_usernames
         if target.role != ROLE_STUDENT and not actor_is_admin:
             return False, "Only an administrator can reset a teacher or admin account."
+        try:
+            _reset_issue_limiter.check(f"reset-issue:{actor.id}:{target.id}")
+        except RateLimitExceeded:
+            return False, "Too many reset codes issued. Please try again later."
         repo.invalidate_reset_tokens(target.id)
         code = secrets.token_urlsafe(6)
         repo.add_reset_token(

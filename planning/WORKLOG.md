@@ -42,3 +42,9 @@
 
 - Built a Git-archive ZIP from the tested PR branch, verified archive CRC, extracted it into an isolated temporary directory and reran the full suite: 130 passed in 6.87 s. Ruff passed and both original image SHA-256 hashes matched. The deliverable and checksum are stored outside the repository in `/Users/mim/Desktop/Preluma/Deliverables/`.
 - Draft PR #2 remained unmerged. GitHub checks for the latest push were pending at the time of this checkpoint; they must be read after completion rather than assumed successful.
+
+## 2026-10-13, 15:09 Asia/Shanghai — SEC-03 local hardening (partial)
+
+- Added an in-process reset-code issuance cap per actor/target that leaves the most recent valid code untouched when blocked. Chat and tutor now draw from one per-user local AI request quota.
+- Added regression tests for both bypasses and wrote a production shared-limiter/provider-budget contract. Focused auth/security suite: 30 passed in 1.34 s. Full suite: 132 passed in 5.84 s. Ruff, compileall, Bandit and pip-audit passed; both preserved image hashes matched.
+- Distributed enforcement and paid-provider budget limits were not implemented or tested; SEC-03 remains in progress. No staging environment, paid provider or production account was touched.
