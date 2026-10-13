@@ -103,6 +103,8 @@ def my_course_recommendation(
         result = get_course_recommendation(user_id, course_id)
     except PermissionError as exc:
         raise HTTPException(403, "Course access denied.") from exc
+    except ValueError as exc:
+        raise HTTPException(503, "Recommendation temporarily unavailable.") from exc
     return CourseRecommendationResponse(
         course_id=result.course_id, lesson_id=result.lesson_id,
         rule_id=result.rule_id, rule_version=result.rule_version,

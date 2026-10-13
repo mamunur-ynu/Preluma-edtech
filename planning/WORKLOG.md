@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-13 — INT-02 local source/projection integrity guard
+
+- Added ADR-014 and validation that a v1 quiz event still matches its source attempt: producer/key, source ID, user/course/lesson, occurrence time, topic, score/total/percentage and unique well-formed concept aggregates. Duplicate append now verifies existing evidence. Replay and shadow recommendation reads reject drift; the recommendation API returns a generic 503 instead of returning a corrupt or cross-course citation. Recommendation reads also compare projection count/last event with the stream to catch a moved or missing event.
+- Four synthetic corruption cases (course reassignment, score tampering, missing source and duplicate concepts) plus an API payload-leak test passed. Focused learning/API suite: 17 passed. Full Python suite: 178 passed with one upstream Starlette TestClient deprecation warning. Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities. Streamlit and Next.js code were not changed in this milestone.
+- Still open: database-enforced append-only controls, compensating correction policy, source/event joint deletion detection, retention/account deletion, poison-event quarantine, teacher evaluation and real PostgreSQL staging. No production data, provider calls, deploy or GitHub push.
+
 ## 2026-10-13 — WEB-02 server-rendered private course preview
 
 - Added `/my-learning`, a read-only Next.js server component that reads the first-party HttpOnly session cookie on the server, obtains `/v1/me` and `/v1/me/courses` through the private BFF transport, validates typed DTOs, and renders only enrolled courses. The raw session token is never intentionally passed to a client component or HTML. Streamlit remains the functional learning application; there is still no web login page.

@@ -7,8 +7,10 @@ from auth import create_user
 from auth.sessions import create_session_token, revoke_session_token
 from database.connection import session_scope
 from database.models import Course, Lesson, User
+from database.models import LearningEvent
 from database.repository import CourseRepository, EnrollmentRepository, LessonRepository
 from services.learning_service import record_quiz_attempt
+from sqlalchemy import select
 
 KEY = "synthetic-recommendation-bff-key-for-tests-12345"
 
@@ -79,3 +81,22 @@ def test_recommendation_contract_minimizes_evidence_and_denies_deactivated(monke
         with session_scope() as session:
             session.get(User, learner.id).is_active = False
         assert client.get(path, headers=_headers(token)).status_code == 401
+
+
+def test_corrupt_evidence_fails_closed_without_payload_leak(monkeypatch):
+    monkeypatch.setenv("PRELUMA_BFF_SHARED_KEY", KEY)
+    learner = create_user("corrupt-private", "Passw0rd!xyz", "Learner")
+    with session_scope() as session:
+        course = CourseRepository(session).add(Course(slug="corrupt-a", title="Corrupt A"))
+        LessonRepository(session).add(Lesson(course_id=course.id, topic_key="statistics", title="Stats"))
+        EnrollmentRepository(session).enroll(learner.id, course.id)
+        course_id = course.id
+    record_quiz_attempt(learner.id, "statistics", 1, 2, course_id=course_id)
+    with session_scope() as session:
+        session.scalar(select(LearningEvent)).payload_json = "{PRIVATE CORRUPT PAYLOAD"
+    token = create_session_token(learner.id)
+    with TestClient(app) as client:
+        response = client.get(f"/v1/me/courses/{course_id}/recommendation", headers=_headers(token))
+        assert response.status_code == 503
+        assert response.json() == {"detail": "Recommendation temporarily unavailable."}
+        assert "PRIVATE" not in response.text

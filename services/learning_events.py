@@ -7,6 +7,7 @@ unambiguous course provenance are intentionally excluded from course mastery.
 from __future__ import annotations
 
 import json
+import math
 from collections import defaultdict
 from collections.abc import Sequence
 from uuid import uuid4
@@ -32,6 +33,7 @@ def append_quiz_event(
         )
     )
     if existing is not None:
+        validated_quiz_payload(session, existing)
         return existing
     concepts: dict[str, list[bool]] = defaultdict(list)
     for result in results:
@@ -60,6 +62,57 @@ def append_quiz_event(
     return event
 
 
+def validated_quiz_payload(session: Session, event: LearningEvent) -> dict:
+    """Reject evidence whose source/provenance or aggregate score has drifted."""
+    try:
+        source_id = int(event.source_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid quiz source: {event.id}") from exc
+    attempt = session.get(QuizAttempt, source_id)
+    if (
+        attempt is None or event.event_type != "quiz.completed" or event.schema_version != 1
+        or event.producer != "learning_service" or event.source_type != "quiz_attempt"
+        or event.idempotency_key != f"quiz:{source_id}"
+        or event.user_id != attempt.user_id or event.course_id != attempt.course_id
+        or event.lesson_id != attempt.lesson_id or event.occurred_at != attempt.created_at
+    ):
+        raise ValueError(f"Quiz evidence provenance mismatch: {event.id}")
+    try:
+        payload = json.loads(event.payload_json)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid quiz evidence payload: {event.id}") from exc
+    if not isinstance(payload, dict):
+        raise ValueError(f"Invalid quiz evidence payload: {event.id}")
+    score, total, percentage = payload.get("score"), payload.get("total"), payload.get("percentage")
+    if (
+        payload.get("topic") != attempt.topic or not isinstance(attempt.topic, str)
+        or not attempt.topic or len(attempt.topic) > 80
+        or type(score) is not int or score != attempt.score
+        or type(total) is not int or total != attempt.total or total <= 0
+        or type(percentage) not in (int, float)
+        or not math.isfinite(percentage)
+        or not math.isclose(percentage, attempt.percentage, abs_tol=1e-9)
+        or not 0 <= percentage <= 100
+    ):
+        raise ValueError(f"Quiz evidence score mismatch: {event.id}")
+    concepts = payload.get("concepts", [])
+    if not isinstance(concepts, list):
+        raise ValueError(f"Invalid concept evidence: {event.id}")
+    seen: set[str] = set()
+    for item in concepts:
+        if not isinstance(item, dict):
+            raise ValueError(f"Invalid concept evidence: {event.id}")
+        concept, correct, count = item.get("concept"), item.get("score"), item.get("total")
+        if (
+            not isinstance(concept, str) or not concept or len(concept) > 80 or concept in seen
+            or type(correct) is not int or type(count) is not int
+            or count <= 0 or not 0 <= correct <= count
+        ):
+            raise ValueError(f"Invalid concept evidence: {event.id}")
+        seen.add(concept)
+    return payload
+
+
 def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> list[CourseMastery]:
     """Replay only attributed events for one user/course; latest 3 weighted 3:2:1."""
     # Serialize concurrent PostgreSQL replays for this exact learner/course pair.
@@ -79,17 +132,13 @@ def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> li
     ).all()
     by_key: dict[tuple[str, str], list[tuple[LearningEvent, float]]] = defaultdict(list)
     for event in events:
-        payload = json.loads(event.payload_json)
+        payload = validated_quiz_payload(session, event)
         topic = payload["topic"]
         percentage = float(payload["percentage"])
-        if not isinstance(topic, str) or not topic or not 0 <= percentage <= 100:
-            raise ValueError(f"Invalid learning event: {event.id}")
         by_key[(topic, "")].append((event, percentage))
         for item in payload.get("concepts", []):
             concept = item["concept"]
             score, total = int(item["score"]), int(item["total"])
-            if not isinstance(concept, str) or not concept or len(concept) > 80 or not 0 <= score <= total or total == 0:
-                raise ValueError(f"Invalid concept evidence: {event.id}")
             by_key[(topic, concept)].append((event, 100.0 * score / total))
 
     # Replacing only this course's projection makes retries and late events deterministic.

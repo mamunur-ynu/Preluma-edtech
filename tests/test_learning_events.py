@@ -13,6 +13,7 @@ from database.models import Course, CourseMastery, LearningEvent, LearningOutbox
 from database.repository import CourseRepository, EnrollmentRepository, LessonRepository
 from services.learning_events import append_quiz_event, rebuild_course_mastery
 from services.learning_service import record_quiz_attempt
+from services.course_recommendations import get_course_recommendation
 
 
 def _two_courses():
@@ -123,3 +124,37 @@ def test_event_and_outbox_are_transactional():
         with pytest.raises(IntegrityError):
             session.flush()
         session.rollback()
+
+
+@pytest.mark.parametrize("corruption", ["course", "score", "source", "concept"])
+def test_replay_and_shadow_read_fail_closed_on_evidence_drift(corruption):
+    user_id, a, b = _two_courses()
+    record_quiz_attempt(user_id, "statistics", 1, 2, course_id=a, details=[
+        {"correct": True, "concept": "mean"},
+    ])
+    with session_scope() as session:
+        event = session.scalar(select(LearningEvent))
+        if corruption == "course":
+            event.course_id = b
+        elif corruption == "score":
+            payload = json.loads(event.payload_json)
+            payload["score"] = 2
+            event.payload_json = json.dumps(payload)
+        elif corruption == "source":
+            event.source_id = "999999"
+        else:
+            payload = json.loads(event.payload_json)
+            payload["concepts"].append(payload["concepts"][0])
+            event.payload_json = json.dumps(payload)
+    target = b if corruption == "course" else a
+    with pytest.raises(ValueError), session_scope() as session:
+        rebuild_course_mastery(session, user_id, target)
+    with pytest.raises(ValueError):
+        get_course_recommendation(user_id, target)
+    if corruption == "course":
+        with pytest.raises(ValueError):
+            get_course_recommendation(user_id, a)
+    with session_scope() as session:
+        rows = session.scalars(select(CourseMastery)).all()
+        assert len(rows) == 2  # topic and concept from the original valid attempt
+        assert all(row.course_id == a for row in rows)

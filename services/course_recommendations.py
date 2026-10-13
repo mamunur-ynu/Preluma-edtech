@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -13,6 +12,7 @@ from database.models import Course, CourseMastery, LearningEvent, Lesson
 from database.repository import EnrollmentRepository
 from services._access import require_active_user
 from services._common import now_utc
+from services.learning_events import validated_quiz_payload
 
 RULE_VERSION = 1
 READY_SCORE = 80.0
@@ -43,8 +43,9 @@ def _evidence_map(session, user_id: int, course_id: int) -> dict[str, tuple[str,
     ).order_by(LearningEvent.occurred_at, LearningEvent.id)).all()
     by_topic: dict[str, list[str]] = {}
     for event in events:
-        by_topic.setdefault(json.loads(event.payload_json)["topic"], []).append(event.id)
-    return {topic: tuple(ids[-3:]) for topic, ids in by_topic.items()}
+        topic = validated_quiz_payload(session, event)["topic"]
+        by_topic.setdefault(topic, []).append(event.id)
+    return {topic: tuple(ids) for topic, ids in by_topic.items()}
 
 
 def get_course_recommendation(
@@ -75,7 +76,16 @@ def get_course_recommendation(
         evidence_by_topic = _evidence_map(session, user_id, course_id)
         for lesson in lessons:
             row = mastery.get(lesson.topic_key)
-            evidence_ids = evidence_by_topic.get(lesson.topic_key, ())
+            all_evidence_ids = evidence_by_topic.get(lesson.topic_key, ())
+            if (row is None and all_evidence_ids) or (
+                row is not None and (
+                    row.attempts != len(all_evidence_ids)
+                    or not all_evidence_ids
+                    or row.last_event_id != all_evidence_ids[-1]
+                )
+            ):
+                raise ValueError("Course mastery evidence mismatch.")
+            evidence_ids = all_evidence_ids[-3:]
             if row is None:
                 return CourseRecommendation(
                     course_id, lesson.id, "cold_start", RULE_VERSION, lesson.topic_key,
