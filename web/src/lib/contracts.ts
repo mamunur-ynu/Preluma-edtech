@@ -11,3 +11,10 @@ export type CourseSummary = {
 };
 
 export type CourseListResponse = { courses: CourseSummary[] };
+
+export type CurrentUserResponse = {
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+};

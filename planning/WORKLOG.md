@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-13 — WEB-02 server-rendered private course preview
+
+- Added `/my-learning`, a read-only Next.js server component that reads the first-party HttpOnly session cookie on the server, obtains `/v1/me` and `/v1/me/courses` through the private BFF transport, validates typed DTOs, and renders only enrolled courses. The raw session token is never intentionally passed to a client component or HTML. Streamlit remains the functional learning application; there is still no web login page.
+- `npm run typecheck` and `npm run build` passed; the new page is a dynamic server-rendered route. `npm audit --audit-level=high` found zero vulnerabilities. The full Python suite again passed 173 tests (one upstream TestClient warning); Ruff, compileall, Bandit and pip-audit passed. A local synthetic SQLite account and enrolment were used with loopback FastAPI + Next development servers; the extended HTTP smoke passed anonymous/private/revoked page assertions and the existing login/CSRF/rotation/logout checks. It also checked that the raw cookie token did not appear in response HTML. Both local servers were stopped afterward. No real student data or paid service was used.
+- An initial `next start` HTTP smoke returned 503 because production-mode configuration correctly requires HTTPS; the same synthetic smoke passed under `next dev`. This is **not** a rendered-browser HTTPS cookie test or a visual inspection of the new page. Gateway, real browser, mobile/desktop private-page rendering, authenticated role parity and production deployment remain open. No GitHub push or merge.
+
 ## 2026-10-13 — API-03 enrolled-course shadow recommendation contract
 
 - Added a versioned, typed, read-only `GET /v1/me/courses/{course_id}/recommendation` endpoint over the existing explainable rule service. It derives the learner from the revocable server session, reuses BFF-key admission, and returns 403 for a course outside the enrolment boundary. No learning mutation or UI activation was added.

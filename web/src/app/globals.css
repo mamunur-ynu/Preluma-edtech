@@ -276,6 +276,12 @@ a:focus-visible {
   border-radius: 0.8rem;
   color: var(--muted);
 }
+.profile-line {
+  margin: 0 0 1.5rem;
+  color: var(--cyan);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
 @media (max-width: 1050px) {
   .feature-grid,
   .course-grid {

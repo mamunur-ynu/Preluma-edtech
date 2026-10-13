@@ -29,6 +29,7 @@ export default function RootLayout({
               <nav aria-label="Primary">
                 <Link href="/">Home</Link>
                 <Link href="/courses">Courses</Link>
+                <Link href="/my-learning">My learning</Link>
               </nav>
               <p className="sidebar-note">
                 Your full learning workspace remains available in the existing
