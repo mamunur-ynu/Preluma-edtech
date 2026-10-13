@@ -33,7 +33,7 @@ Updated: 2026-10-13, Asia/Shanghai. Branch `feature/preluma-release-hardening`, 
 | Bandit (B311 demo randomness excluded) | PASS |
 | pip-audit for runtime and dev requirements | No known vulnerabilities found |
 | Campus/tower SHA-256 | Both match the required values in `AGENTS.md` |
-| Previous clean ZIP extraction | 139 tests passed in 6.51 s at `f3d0431`; Ruff, image hashes, CRC and SHA-256 valid. Rebuild for shared-limit changes. |
+| Clean ZIP extraction | 150 tests passed in 6.60 s at `371c8ce`; Ruff, compileall, image hashes, CRC and SHA-256 valid. Rebuild after any later commit. |
 
 These tests use synthetic SQLite data and offline/mocked AI. Python 3.10, real PostgreSQL, RLS/private object storage, live paid providers, secure gateway and staging/production were NOT RUN. Current release status remains `DEMO_READY`, with production/pilot blockers listed in `planning/RELEASE_GATES.md`.
 
