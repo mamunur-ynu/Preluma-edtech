@@ -225,7 +225,7 @@ def record_quiz_attempt(
         )
         from services.learning_events import append_quiz_event, rebuild_course_mastery
 
-        append_quiz_event(s, attempt)
+        append_quiz_event(s, attempt, results)
         if attempt.course_id is not None:
             rebuild_course_mastery(s, user_id, attempt.course_id)
 

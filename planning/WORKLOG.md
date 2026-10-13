@@ -89,3 +89,9 @@
 - Local previous milestone committed as `fbd8cdc`; it was not pushed. Added revision `20261013_06`, minimal quiz evidence and transactional outbox marker in the existing quiz write transaction, plus deterministic topic-level course mastery replay.
 - Synthetic tests cover multi-course same-topic isolation, ambiguous attempt exclusion, payload privacy, duplicate append, replay of out-of-order event times, transaction rollback and SQLite migration round-trip. Focused 4 tests and full 160-test suite passed; one upstream TestClient deprecation warning. Full Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities.
 - Not complete: concept-level evidence, corrected/superseded events, retention/deletion policy, database-level append-only controls, recommendation activation, outbox worker, real PostgreSQL migration and staging. Streamlit behavior and legacy global mastery remain unchanged. No GitHub push or deployment.
+
+## 2026-10-13 — INT-01 concept evidence and shadow recommendations
+
+- New quiz events now contain only per-concept aggregate correct/total counts (no raw questions/answers). Course replay produces separate topic and concept rows, preserving topic-only replay for earlier events. No schema migration was needed beyond revision 06.
+- Added an active-enrollment-scoped, read-only next-step rule service with versioned `cold_start`, `provisional_practice`, `practice`, `review`, `course_ready` and `empty_course` decisions. It reports score/count, exact recent evidence event IDs and a plain-language reason. The existing Streamlit plan/UI was not switched to it.
+- Focused event/rule tests: 7 passed. Full suite: 164 passed with one upstream TestClient warning. Ruff, compileall and Bandit passed; pip-audit found no known vulnerabilities. No paid provider, real data, PostgreSQL, GitHub push or deployment.

@@ -67,6 +67,33 @@ def test_idempotent_append_and_deterministic_replay():
     assert first.attempt_id != second.attempt_id
 
 
+def test_concept_evidence_is_aggregated_without_answers_and_course_scoped():
+    user_id, a, b = _two_courses()
+    details_a = [
+        {"correct": True, "concept": "mean", "q": "PRIVATE QUESTION", "chosen": "PRIVATE ANSWER"},
+        {"correct": False, "concept": "mean", "q": "OTHER PRIVATE QUESTION", "chosen": "OTHER ANSWER"},
+        {"correct": True, "concept": "median", "q": "MORE PRIVATE QUESTION"},
+    ]
+    record_quiz_attempt(user_id, "statistics", 2, 3, course_id=a, details=details_a)
+    record_quiz_attempt(user_id, "statistics", 0, 1, course_id=b, details=[
+        {"correct": False, "concept": "mean", "q": "COURSE B SECRET"},
+    ])
+    with session_scope() as session:
+        events = session.scalars(select(LearningEvent)).all()
+        assert all("PRIVATE" not in event.payload_json and "SECRET" not in event.payload_json for event in events)
+        rows = session.scalars(select(CourseMastery)).all()
+        values = {(row.course_id, row.concept): row.mastery for row in rows}
+        assert values[(a, "mean")] == 50.0
+        assert values[(a, "median")] == 100.0
+        assert values[(b, "mean")] == 0.0
+        assert (b, "median") not in values
+        first = next(event for event in events if event.course_id == a)
+        assert json.loads(first.payload_json)["concepts"] == [
+            {"concept": "mean", "score": 1, "total": 2},
+            {"concept": "median", "score": 1, "total": 1},
+        ]
+
+
 def test_event_and_outbox_are_transactional():
     user_id, a, _ = _two_courses()
     with pytest.raises(RuntimeError):
