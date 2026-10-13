@@ -9,7 +9,7 @@ from auth import create_user
 from database.connection import session_scope
 from database.models import Course, CourseMastery, LearningEvent, LearningOutbox, Lesson
 from database.repository import CourseRepository, EnrollmentRepository, LessonRepository
-from services.learning_outbox import process_next_learning_event
+from services.learning_outbox import process_next_learning_event, quarantine_invalid_learning_event
 from services.learning_service import record_quiz_attempt
 
 
@@ -66,3 +66,85 @@ def test_failed_replay_does_not_acknowledge_or_change_projection():
     with session_scope() as session:
         assert session.scalar(select(CourseMastery)).mastery == before
         assert session.scalar(select(LearningOutbox)).delivered_at is None
+
+
+def test_explicit_quarantine_preserves_bad_evidence_and_unblocks_other_course():
+    user_id, course_id = _course()
+    record_quiz_attempt(user_id, "statistics", 5, 10, course_id=course_id)
+    with session_scope() as session:
+        bad = session.scalar(select(LearningEvent))
+        bad_id = bad.id
+        bad.payload_json = "{invalid"
+    with pytest.raises(ValueError):
+        process_next_learning_event()
+    assert quarantine_invalid_learning_event(bad_id)
+    assert quarantine_invalid_learning_event(bad_id)
+    with session_scope() as session:
+        marker = session.get(LearningOutbox, bad_id)
+        assert marker.delivered_at is None
+        assert marker.quarantined_at is not None
+        assert marker.quarantine_reason == "invalid_evidence"
+        assert session.get(LearningEvent, bad_id).payload_json == "{invalid"
+
+        other = CourseRepository(session).add(Course(slug="other", title="Other"))
+        LessonRepository(session).add(Lesson(course_id=other.id, topic_key="statistics", title="Stats"))
+        EnrollmentRepository(session).enroll(user_id, other.id)
+        other_id = other.id
+    record_quiz_attempt(user_id, "statistics", 8, 10, course_id=other_id)
+    assert process_next_learning_event() is not None
+    assert process_next_learning_event() is None
+    with session_scope() as session:
+        assert session.get(LearningOutbox, bad_id).delivered_at is None
+        assert session.scalar(select(CourseMastery).where(CourseMastery.course_id == other_id)) is not None
+
+
+def test_valid_event_cannot_be_quarantined():
+    user_id, course_id = _course()
+    record_quiz_attempt(user_id, "statistics", 5, 10, course_id=course_id)
+    with session_scope() as session:
+        event_id = session.scalar(select(LearningEvent)).id
+    assert not quarantine_invalid_learning_event(event_id)
+    assert not quarantine_invalid_learning_event("missing")
+    with session_scope() as session:
+        marker = session.get(LearningOutbox, event_id)
+        assert marker.quarantined_at is None
+        assert marker.delivered_at is None
+    assert process_next_learning_event() == event_id
+    assert not quarantine_invalid_learning_event(event_id)
+
+
+def test_course_less_bad_evidence_is_not_silently_acknowledged():
+    user_id, _ = _course()
+    with session_scope() as session:
+        other = CourseRepository(session).add(Course(slug="ambiguous", title="Ambiguous"))
+        LessonRepository(session).add(Lesson(course_id=other.id, topic_key="statistics", title="Stats"))
+        EnrollmentRepository(session).enroll(user_id, other.id)
+    record_quiz_attempt(user_id, "statistics", 1, 1)
+    with session_scope() as session:
+        event = session.scalar(select(LearningEvent))
+        assert event.course_id is None
+        event_id = event.id
+        event.payload_json = "{invalid"
+    with pytest.raises(ValueError):
+        process_next_learning_event()
+    assert quarantine_invalid_learning_event(event_id)
+    with session_scope() as session:
+        marker = session.get(LearningOutbox, event_id)
+        assert marker.delivered_at is None
+        assert marker.quarantine_reason == "invalid_evidence"
+
+
+def test_unsupported_event_is_quarantined_without_acknowledgement():
+    user_id, course_id = _course()
+    record_quiz_attempt(user_id, "statistics", 1, 1, course_id=course_id)
+    with session_scope() as session:
+        event = session.scalar(select(LearningEvent))
+        event_id = event.id
+        event.schema_version = 99
+    with pytest.raises(ValueError):
+        process_next_learning_event()
+    assert quarantine_invalid_learning_event(event_id)
+    with session_scope() as session:
+        marker = session.get(LearningOutbox, event_id)
+        assert marker.delivered_at is None
+        assert marker.quarantine_reason == "unsupported_schema"

@@ -241,7 +241,7 @@ class LearningEvent(Base):
 
 
 class LearningOutbox(Base):
-    """Transactional delivery marker; only opt-in local replay is available."""
+    """Transactional delivery marker; quarantine retains invalid evidence for review."""
 
     __tablename__ = "learning_outbox"
 
@@ -250,6 +250,8 @@ class LearningOutbox(Base):
     )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    quarantined_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    quarantine_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
 
 class CourseMastery(Base):

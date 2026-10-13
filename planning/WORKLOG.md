@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-14 — INT-02 explicit poison-event containment
+
+- Added revision `20261014_07` with nullable quarantine timestamp/reason on outbox markers, and a narrow operator-invoked function that quarantines only deterministically invalid pending evidence or unsupported schema. Replay now validates course-less quiz events before acknowledging them and skips quarantined markers; it never deletes or marks bad evidence delivered. A valid event is not quarantined. Other courses can replay while an affected course remains fail-closed.
+- Synthetic tests cover corrupt and unsupported events, valid-event refusal, ambiguous-course validation, unrelated-course progress, and revision 07 SQLite upgrade/downgrade. Downgrade refuses to discard populated quarantine metadata. Focused learning/outbox/migration/recommendation suite: 20 passed before this additional migration guard; focused migration/outbox suite after it: 9 passed. Final full Python suite: 185 passed with one upstream TestClient deprecation warning. Ruff, compileall, repository Bandit (`B311` excluded) and pip-audit over both requirements files passed; Alembic reports one head `20261014_07`.
+- ADR-016 defines quarantine as containment, not correction. Append-only compensating correction, operator identity/alerts, same-course resume, PostgreSQL concurrency/outage rehearsal and retention/erasure remain open. No scheduler, real student data, provider, deploy, merge or GitHub push.
+
 ## 2026-10-14 — WEB-02 local browser sign-in and rendered layout
 
 - Added an accessible, same-origin sign-in form and CSRF-backed sign-out control to the read-only Next.js `/my-learning` preview. The BFF keeps the session in an HttpOnly cookie; the client receives no raw session token. The private course preview remains server-rendered, and no Streamlit learning workflow changed.
