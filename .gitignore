@@ -1,7 +1,22 @@
 .streamlit/secrets.toml
+.env
 __pycache__/
 *.pyc
 .pytest_cache/
+.ruff_cache/
+.coverage
+.DS_Store
+*.log
+*.sqlite
+*.sqlite3
 *.egg-info/
-.env
+.venv/
+web/node_modules/
+web/.next/
+web/.env.local
+web/tsconfig.tsbuildinfo
+# runtime data — never commit
 data/
+photos/
+*.db
+result.txt

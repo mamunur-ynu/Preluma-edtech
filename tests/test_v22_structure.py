@@ -1,8 +1,10 @@
 from pathlib import Path
 
+from helpers import app_source
+
 
 def test_guided_mission_and_homework_pages_exist():
-    text = Path("streamlit_app.py").read_text(encoding="utf-8")
+    text = app_source()
     required = [
         "mission_brain_brief_screen",
         "mission_example_screen",

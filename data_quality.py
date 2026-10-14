@@ -107,8 +107,8 @@ def check_topics() -> dict[str, Any]:
     warnings: list[str] = []
 
     try:
-        from topics import TOPIC_OPTIONS
-        from engine import build_pack
+        from core.topics import TOPIC_OPTIONS
+        from services.content_service import build_pack
     except ImportError as e:
         return {
             "suite": "Topic Validation",

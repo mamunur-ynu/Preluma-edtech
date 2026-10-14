@@ -645,3 +645,39 @@ def seed_homework_demo() -> None:
         created_by  ="Teacher Demo",
         questions   =demo_questions,
     )
+
+
+def hw_num(row: dict) -> str:
+    """User-facing homework number: ``HW Number`` if set, otherwise the first 8 chars of the ID."""
+    n = row.get("HW Number") or row.get("hw_number")
+    try:
+        if n and int(n) > 0:
+            return str(int(n))
+    except (ValueError, TypeError):
+        pass
+    return str(row.get("Homework ID", ""))[:8]
+
+
+def update_homework(homework_id: int | str, changes: dict[str, str]) -> bool:
+    """Edit editable fields of one assignment (title, topic, instructions, due date, difficulty).
+
+    Returns ``False`` when the assignment does not exist.  Only whitelisted columns are written.
+    """
+    editable = {"Title", "Topic", "Instructions", "Due Date", "Difficulty"}
+    ensure_homework_files()
+    rows = _read_rows(HOMEWORK_CSV)
+    found = False
+    for row in rows:
+        if str(row.get("Homework ID")) == str(homework_id):
+            found = True
+            for key, value in changes.items():
+                if key in editable:
+                    row[key] = " ".join(str(value).split()) if key != "Instructions" else str(value).strip()
+    if not found:
+        return False
+    with HOMEWORK_CSV.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=HOMEWORK_FIELDS)
+        writer.writeheader()
+        writer.writerows({field: row.get(field, "") for field in HOMEWORK_FIELDS} for row in rows)
+    backup_csv(HOMEWORK_CSV)
+    return True

@@ -22,15 +22,15 @@ import csv
 import datetime
 from pathlib import Path
 
-from algorithms_core import (
+from core.algorithms import (
     merge_sort_records,
     linear_search_by_name,
     binary_search_leftmost,
     collect_binary_search_matches,
     timed_call,
 )
-from analytics_core import mean, population_variance, frequency_table
-from models import StudentRecord, AnalysisResult
+from core.analytics_engine import mean, population_variance, frequency_table
+from core.records import AnalysisResult
 
 STUDENTS_CSV = Path("data/students.csv")
 RESULT_TXT   = Path("result.txt")
@@ -149,7 +149,7 @@ def generate_result_file(search_target: str = "Jia") -> AnalysisResult:
         "",
         "DATASET",
         "-" * 40,
-        f"  Source file : data/students.csv",
+        "  Source file : data/students.csv",
         f"  Total rows  : {len(rows)}",
         "",
         "STATISTICS  (manual implementation — no numpy/pandas)",
@@ -191,7 +191,7 @@ def generate_result_file(search_target: str = "Jia") -> AnalysisResult:
         score = match.get("Readiness", match.get("readiness", ""))
         lines.append(f"  Found   : {name!r} | topic={topic!r} | readiness={score}")
     else:
-        lines.append(f"  Result  : not found")
+        lines.append("  Result  : not found")
     lines += [
         f"  Elapsed : {lin_ns:,} ns  ({lin_ns/1_000_000:.3f} ms)",
         f"  Complexity: O(n)  |  n = {len(rows)}",
