@@ -4,6 +4,7 @@
 
 - Required a live, revocable session for an active administrator before the opt-in quarantine operation; no caller-provided actor ID is trusted. Revision `20261014_08` adds a nullable operator FK to the marker. Legacy quarantine rows retain a null operator, and downgrade refuses to discard populated attribution. No UI/API mutation or background worker was enabled.
 - Synthetic negative tests cover missing/invalid, teacher, revoked, deactivated and demoted sessions; configured admins remain allowed. The SQLite migration test checks FK creation, legacy-null preservation and guarded downgrade. Focused tests: 12 passed before the added demotion case; final full suite: 188 passed with one upstream TestClient warning. Ruff, compileall, `B311`-excluded Bandit, pip-audit over both requirements files, Alembic single-head and `git diff --check` passed. Both original images and their Next.js copies match the recorded SHA-256 hashes. Real PostgreSQL, retention policy and tamper-resistant audit remain unverified.
+- Commit `0b13363` was fast-forward pushed to the existing draft PR #2, not merged. Its clean source archive passed CRC, extracted 188 tests and Ruff, and preserved both exact image hashes. SHA-256: `0e9a9d5b5d8bcf43f34f62a58fe06313280102975edd16941a7ca16d1f80c066`. Both PR `test` checks subsequently completed successfully. No deployment or student-data mutation.
 
 ## 2026-10-14 — INT-02 explicit poison-event containment
 
