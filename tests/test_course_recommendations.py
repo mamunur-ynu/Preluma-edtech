@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from auth import create_user
 from database.connection import session_scope
-from database.models import Course, LearningEvent, Lesson
+from database.models import Course, CourseMastery, LearningEvent, Lesson
 from database.repository import CourseRepository, EnrollmentRepository, LessonRepository, UserRepository
 from services.course_recommendations import get_course_recommendation
 from services.learning_service import record_quiz_attempt
@@ -76,3 +76,35 @@ def test_course_ready_only_after_two_attributed_high_scores():
     record_quiz_attempt(user_id, "statistics", 9, 10, course_id=course_id, when=now - timedelta(days=1))
     result = get_course_recommendation(user_id, course_id, now=now)
     assert (result.rule_id, result.lesson_id) == ("course_ready", None)
+
+
+@pytest.mark.parametrize("drift", ["later_topic", "concept"])
+def test_shadow_rule_checks_entire_course_projection_before_early_decision(drift):
+    user_id, _, course_id = _course()
+    with session_scope() as session:
+        LessonRepository(session).add(Lesson(
+            course_id=course_id, topic_key="python programming", title="Python", order_index=2,
+        ))
+    record_quiz_attempt(
+        user_id, "python programming", 1, 2, course_id=course_id,
+        details=[{"correct": True, "concept": "variables"}],
+    )
+    assert get_course_recommendation(user_id, course_id).rule_id == "cold_start"
+    with session_scope() as session:
+        concept = "" if drift == "later_topic" else "variables"
+        row = session.scalar(select(CourseMastery).where(CourseMastery.concept == concept))
+        row.mastery = 99.0
+    with pytest.raises(ValueError, match="Course mastery evidence mismatch"):
+        get_course_recommendation(user_id, course_id)
+
+
+def test_shadow_rule_rejects_projection_without_event():
+    user_id, _, course_id = _course()
+    with session_scope() as session:
+        session.add(CourseMastery(
+            user_id=user_id, course_id=course_id, topic="statistics", concept="",
+            mastery=100.0, attempts=1, last_event_id="missing",
+            last_practiced_at=datetime(2026, 10, 13), projection_version=1,
+        ))
+    with pytest.raises(ValueError, match="Course mastery evidence mismatch"):
+        get_course_recommendation(user_id, course_id)

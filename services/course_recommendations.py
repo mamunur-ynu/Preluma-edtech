@@ -8,11 +8,11 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 
 from database.connection import session_scope
-from database.models import Course, CourseMastery, LearningEvent, Lesson
+from database.models import Course, CourseMastery, Lesson
 from database.repository import EnrollmentRepository
 from services._access import require_active_user
 from services._common import now_utc
-from services.learning_events import validated_quiz_payload
+from services.learning_events import ProjectionEvidence, expected_course_mastery
 
 RULE_VERSION = 1
 READY_SCORE = 80.0
@@ -34,18 +34,25 @@ class CourseRecommendation:
     evidence_event_ids: tuple[str, ...]
 
 
-def _evidence_map(session, user_id: int, course_id: int) -> dict[str, tuple[str, ...]]:
-    events = session.scalars(select(LearningEvent).where(
-        LearningEvent.user_id == user_id,
-        LearningEvent.course_id == course_id,
-        LearningEvent.event_type == "quiz.completed",
-        LearningEvent.schema_version == 1,
-    ).order_by(LearningEvent.occurred_at, LearningEvent.id)).all()
-    by_topic: dict[str, list[str]] = {}
-    for event in events:
-        topic = validated_quiz_payload(session, event)["topic"]
-        by_topic.setdefault(topic, []).append(event.id)
-    return {topic: tuple(ids) for topic, ids in by_topic.items()}
+def _checked_projection(
+    session, user_id: int, course_id: int,
+) -> dict[tuple[str, str], ProjectionEvidence]:
+    expected = expected_course_mastery(session, user_id, course_id)
+    rows = session.scalars(select(CourseMastery).where(
+        CourseMastery.user_id == user_id, CourseMastery.course_id == course_id,
+    )).all()
+    actual = {(row.topic, row.concept): row for row in rows}
+    if len(actual) != len(rows) or actual.keys() != expected.keys():
+        raise ValueError("Course mastery evidence mismatch.")
+    for key, item in expected.items():
+        row = actual[key]
+        if (
+            row.projection_version != 1 or row.mastery != item.mastery
+            or row.attempts != item.attempts or row.last_event_id != item.last_event_id
+            or row.last_practiced_at != item.last_practiced_at
+        ):
+            raise ValueError("Course mastery evidence mismatch.")
+    return expected
 
 
 def get_course_recommendation(
@@ -58,6 +65,7 @@ def get_course_recommendation(
         course = session.get(Course, course_id)
         if course is None or not EnrollmentRepository(session).is_enrolled(user_id, course_id):
             raise PermissionError("An enrolled course is required.")
+        evidence = _checked_projection(session, user_id, course_id)
         lessons = session.scalars(select(Lesson).where(
             Lesson.course_id == course_id,
         ).order_by(Lesson.order_index, Lesson.id)).all()
@@ -67,24 +75,9 @@ def get_course_recommendation(
                 f"{course.title} has no lessons", "Ask your teacher to add a lesson.",
                 None, 0, (),
             )
-        rows = session.scalars(select(CourseMastery).where(
-            CourseMastery.user_id == user_id,
-            CourseMastery.course_id == course_id,
-            CourseMastery.concept == "",
-        )).all()
-        mastery = {row.topic: row for row in rows}
-        evidence_by_topic = _evidence_map(session, user_id, course_id)
         for lesson in lessons:
-            row = mastery.get(lesson.topic_key)
-            all_evidence_ids = evidence_by_topic.get(lesson.topic_key, ())
-            if (row is None and all_evidence_ids) or (
-                row is not None and (
-                    row.attempts != len(all_evidence_ids)
-                    or not all_evidence_ids
-                    or row.last_event_id != all_evidence_ids[-1]
-                )
-            ):
-                raise ValueError("Course mastery evidence mismatch.")
+            row = evidence.get((lesson.topic_key, ""))
+            all_evidence_ids = row.event_ids if row is not None else ()
             evidence_ids = all_evidence_ids[-3:]
             if row is None:
                 return CourseRecommendation(

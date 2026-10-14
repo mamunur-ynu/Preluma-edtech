@@ -1,5 +1,10 @@
 # Worklog
 
+## 2026-10-14 — INT-02 complete-course projection guard
+
+- The read-only shadow recommender previously checked source evidence for the whole course, but compared projection rows only until the first lesson yielded a decision. It could therefore cite a valid first-lesson decision while a later topic or concept row was corrupted. Refactored the deterministic projection calculation into a shared read-only function used by replay and recommendation; the recommendation now compares every attributed topic/concept row, including mastery score, count, last evidence ID/time and projection version, before returning even an early or empty-course decision. Orphan projection rows also fail closed. No learning writes, schema, Streamlit or Next.js UI changed.
+- Three synthetic negative cases cover later-lesson score drift, concept score drift and a projection with no event. Focused learning/recommendation/outbox suite: 23 passed. Full Python suite: 193 passed with one upstream Starlette TestClient deprecation warning. Ruff, compileall, repository Bandit with B311 excluded, pip-audit over both requirement files and `git diff --check` passed. The exact image assets were not modified. Tests use isolated SQLite; PostgreSQL concurrency, teacher evaluation, correction/retention lifecycle and production gateway remain unverified. No deployment, merge, real student data or paid provider use.
+
 ## 2026-10-14 — UI-01 teacher/admin rendered audit and class HTML safety
 
 - Used disposable local teacher/admin accounts on isolated SQLite. Teacher Home and Class Analytics rendered with the original campus/tower images; the TEACH summary showed a 3px keyboard focus outline, Enter expanded it, Tab moved to Class Analytics, and Enter opened the page. Teacher Class Analytics and Admin Panel at 390px had document scroll width equal to viewport width; Admin Panel at 1440px also had no horizontal overflow. This is local HTTP/limited routes, not full app accessibility certification.

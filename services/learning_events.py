@@ -10,6 +10,8 @@ import json
 import math
 from collections import defaultdict
 from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import datetime
 from uuid import uuid4
 
 from sqlalchemy import delete, select, text
@@ -17,6 +19,15 @@ from sqlalchemy.orm import Session
 
 from core.learning_engine import QuestionResult
 from database.models import CourseMastery, LearningEvent, LearningOutbox, QuizAttempt
+
+
+@dataclass(frozen=True)
+class ProjectionEvidence:
+    mastery: float
+    attempts: int
+    last_event_id: str
+    last_practiced_at: datetime
+    event_ids: tuple[str, ...]
 
 
 def append_quiz_event(
@@ -113,21 +124,14 @@ def validated_quiz_payload(session: Session, event: LearningEvent) -> dict:
     return payload
 
 
-def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> list[CourseMastery]:
-    """Replay only attributed events for one user/course; latest 3 weighted 3:2:1."""
-    # Serialize concurrent PostgreSQL replays for this exact learner/course pair.
-    # SQLite is used only for single-process local demos and synthetic tests.
-    if session.get_bind().dialect.name == "postgresql":
-        session.execute(
-            text("SELECT pg_advisory_xact_lock(:user_id, :course_id)"),
-            {"user_id": user_id, "course_id": course_id},
-        )
+def expected_course_mastery(
+    session: Session, user_id: int, course_id: int,
+) -> dict[tuple[str, str], ProjectionEvidence]:
+    """Compute the complete course projection without writing it."""
     events = session.scalars(
         select(LearningEvent).where(
             LearningEvent.user_id == user_id,
             LearningEvent.course_id == course_id,
-            LearningEvent.event_type == "quiz.completed",
-            LearningEvent.schema_version == 1,
         ).order_by(LearningEvent.occurred_at, LearningEvent.id)
     ).all()
     by_key: dict[tuple[str, str], list[tuple[LearningEvent, float]]] = defaultdict(list)
@@ -141,20 +145,39 @@ def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> li
             score, total = int(item["score"]), int(item["total"])
             by_key[(topic, concept)].append((event, 100.0 * score / total))
 
+    expected = {}
+    for key, evidence in sorted(by_key.items()):
+        latest = evidence[-3:]
+        weights = list(range(1, len(latest) + 1))
+        mastery = round(sum(score * weight for (_, score), weight in zip(latest, weights)) / sum(weights), 1)
+        last = evidence[-1][0]
+        expected[key] = ProjectionEvidence(
+            mastery, len(evidence), last.id, last.occurred_at,
+            tuple(event.id for event, _ in evidence),
+        )
+    return expected
+
+
+def rebuild_course_mastery(session: Session, user_id: int, course_id: int) -> list[CourseMastery]:
+    """Replay only attributed events for one user/course; latest 3 weighted 3:2:1."""
+    # Serialize concurrent PostgreSQL replays for this exact learner/course pair.
+    # SQLite is used only for single-process local demos and synthetic tests.
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(:user_id, :course_id)"),
+            {"user_id": user_id, "course_id": course_id},
+        )
+    expected = expected_course_mastery(session, user_id, course_id)
     # Replacing only this course's projection makes retries and late events deterministic.
     session.execute(delete(CourseMastery).where(
         CourseMastery.user_id == user_id, CourseMastery.course_id == course_id,
     ))
     rows = []
-    for (topic, concept), evidence in sorted(by_key.items()):
-        latest = evidence[-3:]
-        weights = list(range(1, len(latest) + 1))
-        mastery = round(sum(score * weight for (_, score), weight in zip(latest, weights)) / sum(weights), 1)
-        last = evidence[-1][0]
+    for (topic, concept), item in expected.items():
         row = CourseMastery(
             user_id=user_id, course_id=course_id, topic=topic, concept=concept,
-            mastery=mastery, attempts=len(evidence), last_event_id=last.id,
-            last_practiced_at=last.occurred_at, projection_version=1,
+            mastery=item.mastery, attempts=item.attempts, last_event_id=item.last_event_id,
+            last_practiced_at=item.last_practiced_at, projection_version=1,
         )
         session.add(row)
         rows.append(row)
