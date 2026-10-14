@@ -9,7 +9,43 @@ from sqlalchemy import select
 from config import get_settings
 from database.connection import session_scope
 from database.models import ROLE_ADMIN, LearningEvent, LearningOutbox, User, UserSession, utcnow
-from services.learning_events import rebuild_course_mastery, validated_quiz_payload
+from services.learning_events import (
+    rebuild_course_mastery, validated_quiz_payload, validated_void_payload,
+)
+
+
+def require_live_learning_admin(session, operator_session: str) -> User:
+    """Resolve a live administrator inside the caller's transaction."""
+    if not isinstance(operator_session, str) or not operator_session or len(operator_session) > 200:
+        raise PermissionError("Active administrator session required")
+    token_hash = hashlib.sha256(operator_session.encode("utf-8")).hexdigest()
+    identity = session.scalar(
+        select(UserSession).where(
+            UserSession.token_hash == token_hash,
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > utcnow(),
+        ).with_for_update()
+    )
+    operator = session.scalar(
+        select(User).where(User.id == identity.user_id).with_for_update()
+    ) if identity is not None else None
+    if (operator is None or not operator.is_active or (
+        operator.role != ROLE_ADMIN
+        and operator.username not in get_settings().admin_usernames
+    )):
+        raise PermissionError("Active administrator session required")
+    return operator
+
+
+def validate_supported_learning_event(session, event: LearningEvent) -> None:
+    if event.schema_version != 1:
+        raise ValueError(f"Unsupported learning event: {event.id}")
+    if event.event_type == "quiz.completed":
+        validated_quiz_payload(session, event)
+    elif event.event_type == "quiz.voided":
+        validated_void_payload(session, event)
+    else:
+        raise ValueError(f"Unsupported learning event: {event.id}")
 
 
 def process_next_learning_event() -> str | None:
@@ -35,10 +71,8 @@ def process_next_learning_event() -> str | None:
         event = session.get(LearningEvent, pending.event_id)
         if event is None:  # FK integrity should make this unreachable.
             raise ValueError(f"Outbox event is missing: {pending.event_id}")
-        if event.event_type != "quiz.completed" or event.schema_version != 1:
-            raise ValueError(f"Unsupported learning event: {event.id}")
         # Ambiguous (course-less) evidence must also pass provenance validation.
-        validated_quiz_payload(session, event)
+        validate_supported_learning_event(session, event)
         if event.course_id is not None:
             rebuild_course_mastery(session, event.user_id, event.course_id)
         pending.delivered_at = utcnow()
@@ -53,25 +87,8 @@ def quarantine_invalid_learning_event(event_id: str, operator_session: str) -> b
     network errors still raise for retry; a valid event cannot be quarantined.
     Other events for the same course continue to fail closed during rebuild.
     """
-    if not operator_session or len(operator_session) > 200:
-        raise PermissionError("Active administrator session required")
     with session_scope() as session:
-        token_hash = hashlib.sha256(operator_session.encode("utf-8")).hexdigest()
-        identity = session.scalar(
-            select(UserSession).where(
-                UserSession.token_hash == token_hash,
-                UserSession.revoked_at.is_(None),
-                UserSession.expires_at > utcnow(),
-            ).with_for_update()
-        )
-        operator = session.scalar(
-            select(User).where(User.id == identity.user_id).with_for_update()
-        ) if identity is not None else None
-        if (operator is None or not operator.is_active or (
-            operator.role != ROLE_ADMIN
-            and operator.username not in get_settings().admin_usernames
-        )):
-            raise PermissionError("Active administrator session required")
+        operator = require_live_learning_admin(session, operator_session)
         pending = session.scalar(
             select(LearningOutbox)
             .where(LearningOutbox.event_id == event_id)
@@ -84,15 +101,14 @@ def quarantine_invalid_learning_event(event_id: str, operator_session: str) -> b
         event = session.get(LearningEvent, event_id)
         if event is None:
             raise ValueError("Missing learning event cannot be classified")
-        if event.event_type != "quiz.completed" or event.schema_version != 1:
-            reason = "unsupported_schema"
+        try:
+            validate_supported_learning_event(session, event)
+        except ValueError:
+            reason = "unsupported_schema" if event.schema_version != 1 or event.event_type not in (
+                "quiz.completed", "quiz.voided",
+            ) else "invalid_evidence"
         else:
-            try:
-                validated_quiz_payload(session, event)
-            except ValueError:
-                reason = "invalid_evidence"
-            else:
-                return False
+            return False
         pending.quarantined_at = utcnow()
         pending.quarantine_reason = reason
         pending.quarantined_by_user_id = operator.id

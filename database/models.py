@@ -235,6 +235,9 @@ class LearningEvent(Base):
     source_id: Mapped[str] = mapped_column(String(80))
     producer: Mapped[str] = mapped_column(String(40))
     idempotency_key: Mapped[str] = mapped_column(String(120))
+    actor_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True,
+    )
     occurred_at: Mapped[datetime] = mapped_column(DateTime)
     recorded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     payload_json: Mapped[str] = mapped_column(Text)

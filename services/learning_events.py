@@ -18,7 +18,9 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.orm import Session
 
 from core.learning_engine import QuestionResult
-from database.models import CourseMastery, LearningEvent, LearningOutbox, QuizAttempt
+from database.models import CourseMastery, LearningEvent, LearningOutbox, QuizAttempt, User
+
+VOID_REASONS = frozenset({"duplicate_attempt", "assessment_error", "teacher_review"})
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,7 @@ def validated_quiz_payload(session: Session, event: LearningEvent) -> dict:
         attempt is None or event.event_type != "quiz.completed" or event.schema_version != 1
         or event.producer != "learning_service" or event.source_type != "quiz_attempt"
         or event.idempotency_key != f"quiz:{source_id}"
+        or event.actor_user_id is not None
         or event.user_id != attempt.user_id or event.course_id != attempt.course_id
         or event.lesson_id != attempt.lesson_id or event.occurred_at != attempt.created_at
     ):
@@ -124,6 +127,36 @@ def validated_quiz_payload(session: Session, event: LearningEvent) -> dict:
     return payload
 
 
+def validated_void_payload(session: Session, event: LearningEvent) -> LearningEvent:
+    """Validate a one-way correction and its still-verifiable source evidence."""
+    original = session.get(LearningEvent, event.source_id)
+    actor = session.get(User, event.actor_user_id) if event.actor_user_id is not None else None
+    if (
+        original is None or original.id == event.id or actor is None
+        or event.event_type != "quiz.voided" or event.schema_version != 1
+        or event.producer != "learning_correction" or event.source_type != "learning_event"
+        or event.idempotency_key != f"void:{original.id}"
+        or original.event_type != "quiz.completed" or original.course_id is None
+        or event.user_id != original.user_id or event.course_id != original.course_id
+        or event.lesson_id != original.lesson_id
+        or event.occurred_at < original.recorded_at
+    ):
+        raise ValueError(f"Invalid learning correction provenance: {event.id}")
+    validated_quiz_payload(session, original)
+    try:
+        payload = json.loads(event.payload_json)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid learning correction payload: {event.id}") from exc
+    if (
+        not isinstance(payload, dict) or set(payload) != {"original_event_id", "reason_code"}
+        or payload.get("original_event_id") != original.id
+        or not isinstance(payload.get("reason_code"), str)
+        or payload["reason_code"] not in VOID_REASONS
+    ):
+        raise ValueError(f"Invalid learning correction payload: {event.id}")
+    return original
+
+
 def expected_course_mastery(
     session: Session, user_id: int, course_id: int,
 ) -> dict[tuple[str, str], ProjectionEvidence]:
@@ -134,9 +167,22 @@ def expected_course_mastery(
             LearningEvent.course_id == course_id,
         ).order_by(LearningEvent.occurred_at, LearningEvent.id)
     ).all()
-    by_key: dict[tuple[str, str], list[tuple[LearningEvent, float]]] = defaultdict(list)
+    quiz_events: list[tuple[LearningEvent, dict]] = []
+    voided_ids: set[str] = set()
     for event in events:
-        payload = validated_quiz_payload(session, event)
+        if event.event_type == "quiz.completed":
+            quiz_events.append((event, validated_quiz_payload(session, event)))
+        elif event.event_type == "quiz.voided":
+            original = validated_void_payload(session, event)
+            if original.id in voided_ids:
+                raise ValueError(f"Duplicate learning correction: {event.id}")
+            voided_ids.add(original.id)
+        else:
+            raise ValueError(f"Unsupported learning event: {event.id}")
+    by_key: dict[tuple[str, str], list[tuple[LearningEvent, float]]] = defaultdict(list)
+    for event, payload in quiz_events:
+        if event.id in voided_ids:
+            continue
         topic = payload["topic"]
         percentage = float(payload["percentage"])
         by_key[(topic, "")].append((event, percentage))
