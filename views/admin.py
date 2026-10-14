@@ -20,7 +20,7 @@ def admin_panel_page() -> None:
         return
 
     st.markdown("<div style='padding:24px 0 8px;'><div style='font-size:22px;font-weight:800;color:#e2e8f0;'>"
-                "⚙️ Admin Panel</div><div style='font-size:13px;color:#64748b;margin-top:4px;'>"
+                "⚙️ Admin Panel</div><div style='font-size:13px;color:#a7bad2;margin-top:4px;'>"
                 "Administrators only</div></div>", unsafe_allow_html=True)
 
     users = user_service.list_users()
@@ -46,7 +46,7 @@ def admin_panel_page() -> None:
             info.markdown(
                 f"<div style='padding:10px 14px;background:rgba(30,41,59,.6);border-radius:10px;"
                 f"border:1px solid rgba(100,116,139,.15);'><b style='color:#e2e8f0'>{esc(u.full_name)}</b> "
-                f"<span style='color:#64748b;font-size:12px'>@{esc(u.username)}</span> "
+                f"<span style='color:#a7bad2;font-size:12px'>@{esc(u.username)}</span> "
                 f"<span class='pl-pill'>{esc(label)}</span></div>", unsafe_allow_html=True)
             if reset_col.button("Reset code", key=f"reset_{u.username}", help="One-time code, valid 30 minutes"):
                 ok, result = issue_reset_code(int(actor_id), u.username)

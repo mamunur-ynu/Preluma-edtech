@@ -57,7 +57,7 @@ def class_dashboard_page():
     .db-lbl-purple{ color:#a78bfa; }
     .db-val { font-size:13px; color:#cbd5e1; }
     .db-name { font-size:15px; font-weight:700; color:#f1f5f9; margin-bottom:3px; }
-    .db-sub  { font-size:11.5px; color:#64748b; }
+    .db-sub  { font-size:11.5px; color:#a7bad2; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -249,25 +249,25 @@ def class_dashboard_page():
                 unsafe_allow_html=True,
             )
             for row in progress_rows:
-                avg_color = "#34d399" if row["Avg Score"] not in ("--","0%") else "#64748b"
+                avg_color = "#34d399" if row["Avg Score"] not in ("--","0%") else "#a7bad2"
                 st.markdown(f"""
                 <div class="db-card" style="display:flex;justify-content:space-between;
                     align-items:center;flex-wrap:wrap;gap:12px;">
                   <div>
-                    <div class="db-name">{row['Student']}</div>
-                    <div class="db-sub">Weak areas: {row['Weak Areas']}</div>
+                    <div class="db-name">{esc(row['Student'])}</div>
+                    <div class="db-sub">Weak areas: {esc(row['Weak Areas'])}</div>
                   </div>
                   <div style="display:flex;gap:24px;align-items:center;">
                     <div style="text-align:center;">
-                      <div style="font-size:11px;color:#64748b;">Submissions</div>
+                      <div style="font-size:11px;color:#a7bad2;">Submissions</div>
                       <div style="font-size:18px;font-weight:800;color:#f1f5f9;">{row['Submissions']}</div>
                     </div>
                     <div style="text-align:center;">
-                      <div style="font-size:11px;color:#64748b;">Avg Score</div>
+                      <div style="font-size:11px;color:#a7bad2;">Avg Score</div>
                       <div style="font-size:18px;font-weight:800;color:{avg_color};">{row['Avg Score']}</div>
                     </div>
                     <div style="text-align:center;">
-                      <div style="font-size:11px;color:#64748b;">Best</div>
+                      <div style="font-size:11px;color:#a7bad2;">Best</div>
                       <div style="font-size:18px;font-weight:800;color:#38bdf8;">{row['Best Score']}</div>
                     </div>
                   </div>
@@ -396,7 +396,7 @@ def class_dashboard_page():
                         <div class="db-name">{esc(hw_title)}</div>
                         <div class="db-sub">Submitted: {esc(sub.get('Submitted At','')[:16])}</div>
                       </div>
-                      <div style="font-size:22px;font-weight:900;color:{bar_color};">{pct}%</div>
+                      <div style="font-size:22px;font-weight:900;color:{bar_color};">{esc(pct)}%</div>
                     </div>
                     """, unsafe_allow_html=True)
             else:
@@ -416,7 +416,7 @@ def class_dashboard_page():
                 for concept, count in sorted(weak_freq.items(), key=lambda x: -x[1])[:8]:
                     st.markdown(
                         f"<div class='db-card' style='display:flex;justify-content:space-between;'>"
-                        f"<span class='db-val'>{concept}</span>"
+                        f"<span class='db-val'>{esc(concept)}</span>"
                         f"<span style='color:#f87171;font-weight:700;'>{count}×</span></div>",
                         unsafe_allow_html=True,
                     )

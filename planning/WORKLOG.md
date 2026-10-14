@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-14 — UI-01 teacher/admin rendered audit and class HTML safety
+
+- Used disposable local teacher/admin accounts on isolated SQLite. Teacher Home and Class Analytics rendered with the original campus/tower images; the TEACH summary showed a 3px keyboard focus outline, Enter expanded it, Tab moved to Class Analytics, and Enter opened the page. Teacher Class Analytics and Admin Panel at 390px had document scroll width equal to viewport width; Admin Panel at 1440px also had no horizontal overflow. This is local HTTP/limited routes, not full app accessibility certification.
+- Found unescaped legacy student name, weak-area and submission-percentage values in Class Dashboard `unsafe_allow_html` output. Escaped those and improved low-contrast supporting text in Class Dashboard and Admin Panel. A synthetic AppTest injects HTML-like legacy values and asserts escaped markup. Focused UI/Streamlit tests: 15 passed. Full suite: 190 passed with one upstream TestClient warning; Ruff, compileall, `B311`-excluded Bandit, pip-audit and `git diff --check` passed. Original image hashes and web copies remain unchanged.
+- The native Streamlit sidebar-collapse button renders with an empty `aria-label` in this local version; a supported accessibility remediation and a broader role-page keyboard/screen-reader audit remain for UI-01. No external deployment or real student data was touched.
+
 ## 2026-10-14 — UI-01 Streamlit readability slice
 
 - Removed the sidebar-wide `display:none` rule for widget labels and raised contrast for LEARN/TEACH expander headings, dashboard secondary text, home metric labels and footer text. Added a regression test for label visibility, focus-visible styles and opaque text contrast against the dark theme. No navigation or business logic changed.

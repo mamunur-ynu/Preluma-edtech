@@ -48,3 +48,31 @@ def test_streamlit_navigation_and_dashboard_text_remain_readable():
         ("#a7bad2", "#020817"),  # dashboard secondary copy and footer
     ):
         assert _contrast(text_color, surface) >= 4.5
+
+
+def test_teacher_class_dashboard_escapes_legacy_student_and_homework_markup():
+    from auth import create_user
+    from database.connection import session_scope
+    from database.models import User
+    from helpers import logged_in_app
+
+    student = create_user("legacy_student", "Passw0rd!xyz", "Legacy Student")
+    legacy_name = "Legacy <img src=x onerror=alert(1)>"
+    with session_scope() as session:
+        session.get(User, student.id).full_name = legacy_name
+
+    at = logged_in_app("teacher", "Class Dashboard")
+    at.session_state["_cached_hw"] = []
+    at.session_state["_cached_subs"] = [
+        {"Student": legacy_name, "Percentage": "<img src=x onerror=alert(1)>"}
+    ]
+    at.session_state["_cached_mistakes"] = [
+        {"Student": legacy_name, "Weak Concept": "<svg onload=alert(1)>"}
+    ]
+    at.run()
+    assert not at.exception
+    markup = "\n".join(item.value for item in at.markdown)
+    assert "&lt;img src=x onerror=alert(1)&gt;" in markup
+    assert "&lt;svg onload=alert(1)&gt;" in markup
+    assert "<img src=x onerror=alert(1)>" not in markup
+    assert "<svg onload=alert(1)>" not in markup
