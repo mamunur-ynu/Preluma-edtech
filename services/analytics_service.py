@@ -24,6 +24,7 @@ from database.repository import (
 )
 from services._common import now_utc, title_for
 from services._access import require_active_user
+from services.learning_corrections import voided_attempt_ids
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class ClassOverview:
     active_last_7_days: int = 0
     average_mastery: float = 0.0
     average_quiz_score: float = 0.0
+    voided_quizzes: int = 0
     completion_rate: float = 0.0
     distribution: list[dict] = field(default_factory=list)
     topic_ranking: list[dict] = field(default_factory=list)       # hardest first
@@ -79,19 +81,27 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
         if not roster:
             return overview
 
-        attempts = [a for a in QuizAttemptRepository(s).all_recent(days, scoped_courses) if a.user_id in ids]
+        recorded_attempts = [
+            a for a in QuizAttemptRepository(s).all_recent(days, scoped_courses) if a.user_id in ids
+        ]
+        voided_ids = voided_attempt_ids(s, ids, scoped_courses)
+        attempts = [a for a in recorded_attempts if a.id not in voided_ids]
+        overview.voided_quizzes = len(recorded_attempts) - len(attempts)
         attempts_by_user: dict[int, list] = {}
+        recorded_by_user: dict[int, list] = {}
+        for a in recorded_attempts:
+            recorded_by_user.setdefault(a.user_id, []).append(a)
         for a in attempts:
             attempts_by_user.setdefault(a.user_id, []).append(a)
 
         weekly_cutoff = now - timedelta(days=7)
-        overview.active_last_7_days = len({a.user_id for a in attempts if a.created_at >= weekly_cutoff})
+        overview.active_last_7_days = len({a.user_id for a in recorded_attempts if a.created_at >= weekly_cutoff})
 
         rows = []
         for u in roster:
             mine = attempts_by_user.get(u.id, [])
             overall = sum(a.percentage for a in mine) / len(mine) if mine else 0.0
-            last = max((a.created_at for a in mine), default=None)
+            last = max((a.created_at for a in recorded_by_user.get(u.id, [])), default=None)
             topic_scores: dict[str, list[float]] = {}
             for attempt in mine:
                 topic_scores.setdefault(attempt.topic, []).append(attempt.percentage)
@@ -122,7 +132,9 @@ def class_overview(actor_id: int, course_id: int | None = None, days: int = 30) 
         ]
         overview.top_mistakes = [
             {"topic": title_for(t), "concept": c or "(general)", "count": n}
-            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept(ids, scoped_courses)[:8]
+            for t, c, n in QuizAttemptRepository(s).mistake_counts_by_concept(
+                ids, scoped_courses, voided_ids,
+            )[:8]
         ]
 
         # completion: share of lessons completed across the roster's enrolled courses
@@ -150,12 +162,15 @@ def student_detail(actor_id: int, user_id: int, course_id: int | None = None) ->
             if not enrolled.intersection(allowed_courses):
                 raise PermissionError("This student is not enrolled in an accessible course.")
         scoped_courses = None if is_admin and course_id is None else allowed_courses
-        attempts = [a for a in QuizAttemptRepository(s).list_for_user(user_id)
-                    if scoped_courses is None or a.course_id in scoped_courses]
+        recorded_attempts = [a for a in QuizAttemptRepository(s).list_for_user(user_id)
+                             if scoped_courses is None or a.course_id in scoped_courses]
+        voided_ids = voided_attempt_ids(s, {user_id}, scoped_courses)
+        attempts = [a for a in recorded_attempts if a.id not in voided_ids]
         by_topic: dict[str, list] = {}
         for attempt in attempts:
             by_topic.setdefault(attempt.topic, []).append(attempt)
         return {
+            "voided_quizzes": len(recorded_attempts) - len(attempts),
             "topics": [
                 {"topic": title_for(topic), "mastery": round(sum(a.percentage for a in rows) / len(rows), 1),
                  "level": mastery_level(sum(a.percentage for a in rows) / len(rows)),

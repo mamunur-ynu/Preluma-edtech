@@ -1,12 +1,14 @@
 """Teacher analytics must never reveal another course's students or mistakes."""
 
 import pytest
+from sqlalchemy import select
 
-from auth import create_user
+from auth import create_user, start_session
 from database.connection import session_scope
-from database.models import Course, Lesson
+from database.models import Course, LearningEvent, Lesson
 from database.repository import CourseRepository, EnrollmentRepository, LessonRepository, QuizAttemptRepository, UserRepository
 from services import analytics_service, course_service, learning_service
+from services.learning_corrections import void_quiz_evidence
 
 PASSWORD = "Passw0rd!xyz"
 
@@ -119,3 +121,116 @@ def test_student_in_two_courses_has_course_specific_activity_only():
     learning_service.record_quiz_attempt(student.id, "statistics", 2, 2, course_id=a_id)
     assert course_service.get_course(a_id, student.id).completed_lessons == 1
     assert course_service.get_course(b_id, student.id).completed_lessons == 0
+
+
+def test_teacher_quiz_metrics_exclude_voided_attempt_without_erasing_activity_or_other_course():
+    teacher_a = create_user("correction-teacher-a", PASSWORD, "Teacher A", "teacher")
+    teacher_b = create_user("correction-teacher-b", PASSWORD, "Teacher B", "teacher")
+    admin = create_user("correction-analytics-admin", PASSWORD, "Admin", "admin")
+    student = create_user("correction-student", PASSWORD, "Student")
+    with session_scope() as session:
+        a = CourseRepository(session).add(Course(slug="correction-a", title="A", owner_id=teacher_a.id))
+        b = CourseRepository(session).add(Course(slug="correction-b", title="B", owner_id=teacher_b.id))
+        for course in (a, b):
+            LessonRepository(session).add(Lesson(course_id=course.id, topic_key="statistics", title="Stats"))
+            EnrollmentRepository(session).enroll(student.id, course.id)
+        a_id, b_id = a.id, b.id
+    bad = learning_service.record_quiz_attempt(
+        student.id, "statistics", 0, 1, course_id=a_id,
+        details=[{"correct": False, "concept": "voided-concept"}],
+    )
+    learning_service.record_quiz_attempt(student.id, "statistics", 1, 1, course_id=a_id)
+    learning_service.record_quiz_attempt(
+        student.id, "statistics", 0, 1, course_id=b_id,
+        details=[{"correct": False, "concept": "other-course-concept"}],
+    )
+    with session_scope() as session:
+        original_id = session.scalar(select(LearningEvent.id).where(
+            LearningEvent.source_id == str(bad.attempt_id),
+            LearningEvent.event_type == "quiz.completed",
+        ))
+    assert course_service.get_course(a_id, student.id).completed_lessons == 1
+    void_quiz_evidence(original_id, start_session(admin), "assessment_error")
+
+    own_a = analytics_service.class_overview(teacher_a.id, a_id)
+    assert (own_a.voided_quizzes, own_a.average_quiz_score, own_a.student_rows[0].attempts) == (1, 100.0, 1)
+    assert own_a.active_last_7_days == 1 and own_a.student_rows[0].last_active != "—"
+    assert own_a.top_mistakes == []
+    assert course_service.get_course(a_id, student.id).completed_lessons == 1
+    assert learning_service.get_dashboard(student.id).stats["attempts"] == 3
+    detail_a = analytics_service.student_detail(teacher_a.id, student.id, a_id)
+    assert (detail_a["voided_quizzes"], detail_a["topics"][0]["attempts"]) == (1, 1)
+    own_b = analytics_service.class_overview(teacher_b.id, b_id)
+    assert (own_b.voided_quizzes, own_b.average_quiz_score) == (0, 0.0)
+    assert {row["concept"] for row in own_b.top_mistakes} == {"other-course-concept"}
+    with pytest.raises(PermissionError):
+        analytics_service.student_detail(teacher_a.id, student.id, b_id)
+
+
+@pytest.mark.parametrize("drift", ["payload", "learner", "event_type"])
+def test_teacher_analytics_rejects_tampered_correction_in_its_course_only(drift):
+    teacher_a = create_user("tampered-teacher-a", PASSWORD, "Teacher A", "teacher")
+    teacher_b = create_user("tampered-teacher-b", PASSWORD, "Teacher B", "teacher")
+    admin = create_user("tampered-admin", PASSWORD, "Admin", "admin")
+    student = create_user("tampered-student", PASSWORD, "Student")
+    other_learner = create_user("tampered-other", PASSWORD, "Other")
+    with session_scope() as session:
+        a = CourseRepository(session).add(Course(slug="tampered-a", title="A", owner_id=teacher_a.id))
+        b = CourseRepository(session).add(Course(slug="tampered-b", title="B", owner_id=teacher_b.id))
+        for course in (a, b):
+            LessonRepository(session).add(Lesson(course_id=course.id, topic_key="statistics", title="Stats"))
+            EnrollmentRepository(session).enroll(student.id, course.id)
+        a_id, b_id = a.id, b.id
+    bad = learning_service.record_quiz_attempt(student.id, "statistics", 0, 1, course_id=a_id)
+    learning_service.record_quiz_attempt(student.id, "statistics", 1, 1, course_id=b_id)
+    with session_scope() as session:
+        original_id = session.scalar(select(LearningEvent.id).where(
+            LearningEvent.source_id == str(bad.attempt_id),
+            LearningEvent.event_type == "quiz.completed",
+        ))
+    correction_id = void_quiz_evidence(original_id, start_session(admin), "assessment_error")
+    with session_scope() as session:
+        correction = session.get(LearningEvent, correction_id)
+        if drift == "payload":
+            correction.payload_json = "{invalid"
+        elif drift == "learner":
+            correction.user_id = other_learner.id
+        else:
+            correction.event_type = "unexpected"
+    with pytest.raises(ValueError):
+        analytics_service.class_overview(teacher_a.id, a_id)
+    with pytest.raises(ValueError):
+        analytics_service.student_detail(teacher_a.id, student.id, a_id)
+    assert analytics_service.class_overview(teacher_b.id, b_id).student_rows[0].attempts == 1
+
+
+def test_teacher_dashboard_labels_corrected_quiz_metric_scope():
+    from helpers import logged_in_app
+
+    at = logged_in_app("teacher", "Teacher Dashboard")
+    assert not at.exception
+    teacher_id = at.session_state["user_id"]
+    admin = create_user("caption-admin", PASSWORD, "Admin", "admin")
+    student = create_user("caption-student", PASSWORD, "Student")
+    with session_scope() as session:
+        course = CourseRepository(session).add(Course(
+            slug="caption-course", title="Caption Course", owner_id=teacher_id,
+        ))
+        LessonRepository(session).add(Lesson(
+            course_id=course.id, topic_key="statistics", title="Stats",
+        ))
+        EnrollmentRepository(session).enroll(student.id, course.id)
+        course_id = course.id
+    attempt = learning_service.record_quiz_attempt(student.id, "statistics", 1, 2, course_id=course_id)
+    with session_scope() as session:
+        event_id = session.scalar(select(LearningEvent.id).where(
+            LearningEvent.event_type == "quiz.completed",
+            LearningEvent.source_id == str(attempt.attempt_id),
+        ))
+    void_quiz_evidence(event_id, start_session(admin), "assessment_error")
+    assert analytics_service.class_overview(teacher_id).voided_quizzes == 1
+    at.run()
+    assert not at.exception
+    captions = "\n".join(item.value for item in at.caption)
+    assert "corrected quiz(es) excluded" in captions
+    assert "lesson completion and legacy global mastery remain unchanged" in captions

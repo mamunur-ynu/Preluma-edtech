@@ -306,7 +306,8 @@ class QuizAttemptRepository(_Repo):
         return self.session.scalars(stmt.order_by(QuizAttempt.created_at)).all()
 
     def mistake_counts_by_concept(
-        self, user_ids: set[int], course_ids: set[int] | None = None
+        self, user_ids: set[int], course_ids: set[int] | None = None,
+        excluded_attempt_ids: set[int] | None = None,
     ) -> list[tuple[str, str, int]]:
         if not user_ids:
             return []
@@ -321,6 +322,8 @@ class QuizAttemptRepository(_Repo):
             if not course_ids:
                 return []
             stmt = stmt.where(QuizAttempt.course_id.in_(course_ids))
+        if excluded_attempt_ids:
+            stmt = stmt.where(QuizAttempt.id.not_in(excluded_attempt_ids))
         rows = self.session.execute(stmt).all()
         return [(t, c, int(n)) for t, c, n in rows]
 

@@ -9,7 +9,8 @@ from __future__ import annotations
 import json
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session
 
 from database.connection import session_scope
 from database.models import LearningEvent, LearningOutbox, utcnow
@@ -17,6 +18,41 @@ from services.learning_events import (
     VOID_REASONS, rebuild_course_mastery, validated_quiz_payload, validated_void_payload,
 )
 from services.learning_outbox import require_live_learning_admin
+
+
+def voided_attempt_ids(
+    session: Session, user_ids: set[int], course_ids: set[int] | None = None,
+) -> set[int]:
+    """Validate relevant corrections before excluding source attempts from quiz metrics.
+
+    Looking up corrections by either their claimed learner or source learner
+    ensures a corrupted correction cannot silently restore a voided attempt.
+    """
+    if not user_ids or course_ids == set():
+        return set()
+    source_ids = select(LearningEvent.id).where(
+        LearningEvent.event_type == "quiz.completed", LearningEvent.user_id.in_(user_ids),
+    )
+    if course_ids is not None:
+        source_ids = source_ids.where(LearningEvent.course_id.in_(course_ids))
+    claimed_scope = LearningEvent.user_id.in_(user_ids)
+    if course_ids is not None:
+        claimed_scope = claimed_scope & LearningEvent.course_id.in_(course_ids)
+    corrections = session.scalars(select(LearningEvent).where(
+        or_(LearningEvent.event_type == "quiz.voided", LearningEvent.producer == "learning_correction"),
+        or_(claimed_scope, LearningEvent.source_id.in_(source_ids)),
+    )).all()
+    result: set[int] = set()
+    for correction in corrections:
+        original = validated_void_payload(session, correction)
+        if original.user_id in user_ids and (
+            course_ids is None or original.course_id in course_ids
+        ):
+            attempt_id = int(original.source_id)
+            if attempt_id in result:
+                raise ValueError("Duplicate learning correction")
+            result.add(attempt_id)
+    return result
 
 
 def void_quiz_evidence(event_id: str, operator_session: str, reason_code: str) -> str:

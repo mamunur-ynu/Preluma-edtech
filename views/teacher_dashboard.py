@@ -29,6 +29,12 @@ def teacher_dashboard_page() -> None:
         empty_state("No students yet. Once students register (and enrol), their results appear here.")
         return
 
+    if overview.voided_quizzes:
+        st.caption(
+            f"{overview.voided_quizzes} corrected quiz(es) excluded from score and mistake charts. "
+            "Original activity, lesson completion and legacy global mastery remain unchanged."
+        )
+
     card_grid([
         metric_card("Students", overview.students, f"{overview.active_last_7_days} active in the last 7 days"),
         metric_card("Student quiz average", f"{overview.average_mastery:.0f}%", "Each active student weighted equally",
@@ -68,6 +74,8 @@ def teacher_dashboard_page() -> None:
     picked = st.selectbox("Drill into a student", ["—"] + list(names), key="td_student")
     if picked != "—":
         detail = analytics_service.student_detail(actor_id, names[picked], labels[choice])
+        if detail["voided_quizzes"]:
+            st.caption(f"{detail['voided_quizzes']} corrected quiz(es) excluded from this quiz-average chart.")
         if detail["topics"]:
             st.plotly_chart(charts.mastery_bar([(t["topic"], t["mastery"]) for t in detail["topics"]],
                                               f"{picked}: quiz averages"),
