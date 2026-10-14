@@ -252,6 +252,9 @@ class LearningOutbox(Base):
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     quarantined_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     quarantine_reason: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    quarantined_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=True
+    )
 
 
 class CourseMastery(Base):

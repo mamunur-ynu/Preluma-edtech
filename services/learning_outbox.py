@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from sqlalchemy import select
 
+from config import get_settings
 from database.connection import session_scope
-from database.models import LearningEvent, LearningOutbox, utcnow
+from database.models import ROLE_ADMIN, LearningEvent, LearningOutbox, User, UserSession, utcnow
 from services.learning_events import rebuild_course_mastery, validated_quiz_payload
 
 
@@ -42,14 +45,33 @@ def process_next_learning_event() -> str | None:
         return event.id
 
 
-def quarantine_invalid_learning_event(event_id: str) -> bool:
+def quarantine_invalid_learning_event(event_id: str, operator_session: str) -> bool:
     """Explicitly isolate one deterministically invalid pending event.
 
-    This opt-in operator action never repairs or discards evidence. Database and
+    A live administrator session is required; the operator is recorded with
+    the marker. This action never repairs or discards evidence. Database and
     network errors still raise for retry; a valid event cannot be quarantined.
     Other events for the same course continue to fail closed during rebuild.
     """
+    if not operator_session or len(operator_session) > 200:
+        raise PermissionError("Active administrator session required")
     with session_scope() as session:
+        token_hash = hashlib.sha256(operator_session.encode("utf-8")).hexdigest()
+        identity = session.scalar(
+            select(UserSession).where(
+                UserSession.token_hash == token_hash,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > utcnow(),
+            ).with_for_update()
+        )
+        operator = session.scalar(
+            select(User).where(User.id == identity.user_id).with_for_update()
+        ) if identity is not None else None
+        if (operator is None or not operator.is_active or (
+            operator.role != ROLE_ADMIN
+            and operator.username not in get_settings().admin_usernames
+        )):
+            raise PermissionError("Active administrator session required")
         pending = session.scalar(
             select(LearningOutbox)
             .where(LearningOutbox.event_id == event_id)
@@ -73,4 +95,5 @@ def quarantine_invalid_learning_event(event_id: str) -> bool:
                 return False
         pending.quarantined_at = utcnow()
         pending.quarantine_reason = reason
+        pending.quarantined_by_user_id = operator.id
         return True

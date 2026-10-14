@@ -1,5 +1,10 @@
 # Worklog
 
+## 2026-10-14 — INT-02 manual quarantine authorization and attribution
+
+- Required a live, revocable session for an active administrator before the opt-in quarantine operation; no caller-provided actor ID is trusted. Revision `20261014_08` adds a nullable operator FK to the marker. Legacy quarantine rows retain a null operator, and downgrade refuses to discard populated attribution. No UI/API mutation or background worker was enabled.
+- Synthetic negative tests cover missing/invalid, teacher, revoked, deactivated and demoted sessions; configured admins remain allowed. The SQLite migration test checks FK creation, legacy-null preservation and guarded downgrade. Focused tests: 12 passed before the added demotion case; final full suite: 188 passed with one upstream TestClient warning. Ruff, compileall, `B311`-excluded Bandit, pip-audit over both requirements files, Alembic single-head and `git diff --check` passed. Both original images and their Next.js copies match the recorded SHA-256 hashes. Real PostgreSQL, retention policy and tamper-resistant audit remain unverified.
+
 ## 2026-10-14 — INT-02 explicit poison-event containment
 
 - Added revision `20261014_07` with nullable quarantine timestamp/reason on outbox markers, and a narrow operator-invoked function that quarantines only deterministically invalid pending evidence or unsupported schema. Replay now validates course-less quiz events before acknowledging them and skips quarantined markers; it never deletes or marks bad evidence delivered. A valid event is not quarantined. Other courses can replay while an affected course remains fail-closed.
