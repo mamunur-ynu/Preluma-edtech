@@ -408,7 +408,7 @@ code, pre, [data-testid="stCodeBlock"] {
     font-size: 10px !important;
     font-weight: 800 !important;
     letter-spacing: .12em !important;
-    color: #475569 !important;
+    color: #b9cde2 !important;
     background: transparent !important;
     list-style: none !important;
 }
@@ -418,8 +418,7 @@ code, pre, [data-testid="stCodeBlock"] {
     border-top: none !important;
     padding: 2px 0 4px !important;
 }
-/* Hide default Streamlit widget labels inside sidebar */
-[data-testid="stSidebar"] label { display: none !important; }
+/* Keep widget labels available to sighted and assistive-technology users. */
 [data-testid="stSidebar"] .stTextInput input {
     background: rgba(8,14,26,.7) !important;
     border: 1px solid rgba(255,255,255,.10) !important;
@@ -442,7 +441,7 @@ code, pre, [data-testid="stCodeBlock"] {
 /* Nav section labels */
 .nav-label {
     margin: 1.1rem 0 .3rem .04rem;
-    color: rgba(100,116,139,.75) !important;
+    color: #b9cde2 !important;
     font-size: 9.5px !important;
     letter-spacing: .2em;
     font-weight: 800;
@@ -636,7 +635,7 @@ code, pre, [data-testid="stCodeBlock"] {
     padding: 8px 4px !important;
     font-size: 9.5px !important;
     font-weight: 800 !important;
-    color: rgba(100,116,139,.75) !important;
+    color: #b9cde2 !important;
     letter-spacing: .18em !important;
     text-transform: uppercase !important;
     border-radius: 8px !important;
@@ -644,7 +643,7 @@ code, pre, [data-testid="stCodeBlock"] {
     background: transparent !important;
 }
 [data-testid="stSidebar"] [data-testid="stExpander"] summary:hover {
-    color: rgba(148,163,184,.95) !important;
+    color: #f1f7ff !important;
     background: rgba(255,255,255,.03) !important;
 }
 [data-testid="stSidebar"] [data-testid="stExpander"] summary svg {
@@ -844,7 +843,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     box-shadow: inset 0 1px rgba(255, 255, 255, .04), 0 16px 42px rgba(0, 0, 0, .20);
 }
 .home-metric strong { color: var(--card-tone); font-size: clamp(34px, 4vw, 48px); line-height: 1; letter-spacing: -.04em; text-shadow: 0 0 26px color-mix(in srgb, var(--card-tone) 36%, transparent); }
-.home-metric span { margin-top: 12px; color: #91a3ba; font-size: 10px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.home-metric span { margin-top: 12px; color: #b1c4db; font-size: 11px; font-weight: 850; letter-spacing: .10em; text-transform: uppercase; }
 .tone-cyan { --card-tone: var(--pl-cyan); }.tone-indigo { --card-tone: var(--pl-indigo); }
 .tone-emerald { --card-tone: var(--pl-emerald); }.tone-amber { --card-tone: var(--pl-amber); }
 .tone-rose { --card-tone: var(--pl-rose); }.tone-violet { --card-tone: var(--pl-violet); }
@@ -881,12 +880,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .st-key-home_quick_actions { margin: -4px 0 52px; padding: 18px; border: 1px solid var(--pl-border); border-radius: 20px; background: rgba(7, 15, 30, .58); }
 .st-key-home_quick_actions .stButton > button { min-height: 48px !important; }
 
-.home-footer { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 20px 0 4px; border-top: 1px solid rgba(148, 163, 184, .10); color: #73859d; font-size: 11px; letter-spacing: .025em; }
+.home-footer { display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; padding: 20px 0 4px; border-top: 1px solid rgba(148, 163, 184, .10); color: #a7bad2; font-size: 12px; letter-spacing: .025em; }
 .home-footer strong { color: #8edcff; }
 
 /* Dashboard polish remains generic so feature modules stay independent. */
 .pl-card { min-height: 122px; border-color: var(--pl-border); background: linear-gradient(155deg, rgba(14, 27, 51, .88), rgba(7, 15, 30, .94)); box-shadow: 0 16px 38px rgba(0, 0, 0, .18); }
-.pl-card .lbl { color: #9aacc2; }.pl-card .sub { color: #8295ad; line-height: 1.55; }
+.pl-card .lbl { color: #b1c4db; }.pl-card .sub { color: #a7bad2; line-height: 1.55; }
 .page-intro { border-color: rgba(125, 211, 252, .16); box-shadow: 0 22px 58px rgba(0, 0, 0, .22); }
 
 @media (max-width: 1100px) {
@@ -916,7 +915,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 @media (max-width: 420px) {
     .home-hero-meta { align-items: flex-start; flex-direction: column; }
     .home-metric-grid { grid-template-columns: 1fr 1fr; }
-    .home-metric span { font-size: 9px; letter-spacing: .08em; text-align: center; }
+    .home-metric span { font-size: 10.5px; letter-spacing: .06em; text-align: center; }
 }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }

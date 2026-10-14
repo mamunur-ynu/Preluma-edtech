@@ -1,5 +1,11 @@
 # Worklog
 
+## 2026-10-14 — UI-01 Streamlit readability slice
+
+- Removed the sidebar-wide `display:none` rule for widget labels and raised contrast for LEARN/TEACH expander headings, dashboard secondary text, home metric labels and footer text. Added a regression test for label visibility, focus-visible styles and opaque text contrast against the dark theme. No navigation or business logic changed.
+- Focused UI/Streamlit tests: 14 passed. Full suite: 189 passed with one upstream TestClient warning. Ruff, compileall, `B311`-excluded Bandit, pip-audit and `git diff --check` passed. Both original campus/tower assets and Next.js copies retained their recorded SHA-256 hashes.
+- Launched a disposable local Streamlit preview and inspected signed-in student Home at desktop 1440px and mobile 390px. The campus hero and tower sidebar rendered; the mobile document scroll width equalled 390px viewport width; LEARN heading computed as `rgb(185, 205, 226)`. Original student navigation remained usable. This was local HTTP, not a production/HTTPS check. Teacher/admin rendered pages and a full keyboard-navigation audit remain open, so UI-01 stays IN_PROGRESS.
+
 ## 2026-10-14 — INT-02 manual quarantine authorization and attribution
 
 - Required a live, revocable session for an active administrator before the opt-in quarantine operation; no caller-provided actor ID is trusted. Revision `20261014_08` adds a nullable operator FK to the marker. Legacy quarantine rows retain a null operator, and downgrade refuses to discard populated attribution. No UI/API mutation or background worker was enabled.
